@@ -4,6 +4,10 @@
 #include <vk_buffers.h>
 #include <vk_utils.h>
 
+#include <random>
+#include <numeric>
+#include <chrono>
+
 SimpleCompute::SimpleCompute(uint32_t a_length) : m_length(a_length)
 {
 #ifdef NDEBUG
@@ -127,7 +131,6 @@ void SimpleCompute::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkPipeli
   VK_CHECK_RESULT(vkEndCommandBuffer(a_cmdBuff));
 }
 
-
 void SimpleCompute::CleanupPipeline()
 {
   if (m_cmdBufferCompute)
@@ -143,7 +146,6 @@ void SimpleCompute::CleanupPipeline()
   vkDestroyPipeline(m_device, m_pipeline, nullptr);
 }
 
-
 void SimpleCompute::Cleanup()
 {
   CleanupPipeline();
@@ -153,7 +155,6 @@ void SimpleCompute::Cleanup()
     vkDestroyCommandPool(m_device, m_commandPool, nullptr);
   }
 }
-
 
 void SimpleCompute::CreateComputePipeline()
 {
@@ -199,9 +200,38 @@ void SimpleCompute::CreateComputePipeline()
   vkDestroyShaderModule(m_device, shaderModule, nullptr);
 }
 
+void ExecuteOnCpu()
+{
+  std::default_random_engine generator{42};
+  std::uniform_real_distribution distribution{0.0, 10000.0};
+  std::vector<double> vals{};
+  std::generate_n(std::back_inserter(vals), 1000000,
+                 [&generator, &distribution]() { return distribution(generator); });
+  std::vector<double> smoothed(vals.size());
+
+  std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+  for (int i = 0; i < vals.size(); ++i) {
+    double accum = 0;
+    for (int j = -3; j <= 3; ++j) {
+      if (i + j >= 0 && i + j < vals.size()) {
+        accum += vals[i + j];
+      }
+    }
+    smoothed[i] = accum / 7;
+  }
+
+  std::transform(vals.begin(), vals.end(), smoothed.begin(), vals.begin(),
+                [](auto a, auto b){ return a - b; });
+  const auto avg = std::accumulate(vals.begin(), vals.end(), 0.0) / vals.size();
+  std::cout << "Result on CPU: " << avg << '\n';
+  std::cout << "Time on CPU: " << 
+    std::chrono::duration<double, std::milli>{
+      std::chrono::high_resolution_clock::now() - start}.count() << '\n';
+}
 
 void SimpleCompute::Execute()
 {
+  ExecuteOnCpu();
   SetupSimplePipeline();
   CreateComputePipeline();
 
