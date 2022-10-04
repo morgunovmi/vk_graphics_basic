@@ -30,9 +30,9 @@ void main()
   ivec2 texSize = textureSize(colorTex, 0);
   float centerL = luminance(texture(colorTex, surf.texCoord));
 
-  for (int i = -rad; i < rad; ++i)
+  for (int i = -rad; i <= rad; ++i)
   {
-    for (int j = -rad; j < rad; ++j)
+    for (int j = -rad; j <= rad; ++j)
     {
       vec2 offset = vec2(i, j);
       vec4 curColor = texture(colorTex, surf.texCoord + offset / texSize);
