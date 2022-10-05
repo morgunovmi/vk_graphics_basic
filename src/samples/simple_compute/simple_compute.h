@@ -79,7 +79,11 @@ private:
   VkPipeline m_pipeline;
   VkPipelineLayout m_layout;
 
-  VkBuffer m_A, m_B, m_sum;
+  VkBuffer m_values, m_smoothed;
+
+  std::vector<float> m_cpuResult, m_gpuResult;
+  void ExecuteOnCpu();
+
  
   void CreateInstance();
   void CreateDevice(uint32_t a_deviceId);
