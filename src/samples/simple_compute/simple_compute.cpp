@@ -83,11 +83,13 @@ void SimpleCompute::SetupSimplePipeline()
   m_values = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                                                        VK_BUFFER_USAGE_TRANSFER_DST_BIT);
 
-  m_smoothed = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+  m_smoothed = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+                                                                  
+  m_result = vk_utils::createBuffer(m_device, sizeof(int), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                                                        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                                                                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
-  vk_utils::allocateAndBindWithPadding(m_device, m_physicalDevice, {m_values, m_smoothed}, 0);
+  vk_utils::allocateAndBindWithPadding(m_device, m_physicalDevice, {m_values, m_smoothed, m_result}, 0);
 
   m_pBindings = std::make_shared<vk_utils::DescriptorMaker>(m_device, dtypes, 1);
 
@@ -95,6 +97,7 @@ void SimpleCompute::SetupSimplePipeline()
   m_pBindings->BindBegin(VK_SHADER_STAGE_COMPUTE_BIT);
   m_pBindings->BindBuffer(0, m_values);
   m_pBindings->BindBuffer(1, m_smoothed);
+  m_pBindings->BindBuffer(2, m_result);
   m_pBindings->BindEnd(&m_sumDS, &m_sumDSLayout);
 
   // Заполнение буферов
@@ -105,6 +108,8 @@ void SimpleCompute::SetupSimplePipeline()
                  [&generator, &distribution]() { return distribution(generator); });
 
   m_pCopyHelper->UpdateBuffer(m_values, 0, vals.data(), sizeof(float) * vals.size());
+  int val = 0;
+  m_pCopyHelper->UpdateBuffer(m_result, 0, &val, sizeof(int));
 }
 
 void SimpleCompute::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkPipeline)
@@ -137,6 +142,7 @@ void SimpleCompute::CleanupPipeline()
 
   vkDestroyBuffer(m_device, m_values, nullptr);
   vkDestroyBuffer(m_device, m_smoothed, nullptr);
+  vkDestroyBuffer(m_device, m_result, nullptr);
 
   vkDestroyPipelineLayout(m_device, m_layout, nullptr);
   vkDestroyPipeline(m_device, m_pipeline, nullptr);
@@ -201,14 +207,8 @@ void SimpleCompute::ExecuteOnCpu()
   std::default_random_engine generator{42};
   std::uniform_real_distribution distribution{0.0f, 10000.0f};
   std::vector<float> vals{};
-  std::generate_n(std::back_inserter(vals), 10000000,
+  std::generate_n(std::back_inserter(vals), m_length,
                  [&generator, &distribution]() { return distribution(generator); });
-
-  // std::cout << "Generated on for cpu:\n";
-  // for (std::size_t i = 0; i < 15; ++i) {
-  //   std::cout << vals[i] << ' ';
-  // }
-  // std::cout << '\n';
 
   std::vector<float> smoothed(vals.size());
 
@@ -226,18 +226,11 @@ void SimpleCompute::ExecuteOnCpu()
   std::transform(smoothed.begin(), smoothed.end(), vals.begin(), smoothed.begin(),
                 [](auto a, auto b){ return b - a; });
   
-  // std::cout << "Before accum on cpu:\n";
-  // for (std::size_t i = 0; i < 10; ++i) {
-  //   std::cout << smoothed[i] << ' ';
-  // }
-  // std::cout << '\n';
   const auto avg = std::accumulate(smoothed.begin(), smoothed.end(), 0.0) / smoothed.size();
   std::cout << "Result on CPU: " << avg << '\n';
   std::cout << "Time on CPU: " << 
     std::chrono::duration<float, std::milli>{
       std::chrono::high_resolution_clock::now() - start}.count() << '\n';
-
-  m_cpuResult = std::move(smoothed);
 }
 
 void SimpleCompute::Execute()
@@ -267,17 +260,10 @@ void SimpleCompute::Execute()
   //Ждём конца выполнения команд
   VK_CHECK_RESULT(vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, 100000000000));
 
-  std::vector<float> smoothed(m_length);
-  m_pCopyHelper->ReadBuffer(m_smoothed, 0, smoothed.data(), sizeof(float) * smoothed.size());
+  int result = 0;
+  m_pCopyHelper->ReadBuffer(m_result, 0, &result, sizeof(int));
 
-  // std::cout << "Before accum on gpu:\n";
-  // for (std::size_t i = 0; i < 10; ++i) {
-  //   std::cout << smoothed[i] << ' ';
-  // }
-  // std::cout << '\n';
-
-  const auto avg = std::accumulate(smoothed.begin(), smoothed.end(), 0.0) / smoothed.size();
-  std::cout << "Result on GPU: " << avg << '\n';
+  std::cout << "Result on GPU: " << static_cast<float>(result) / 1000000.f << '\n';
   std::cout << "Time on GPU: " << 
   std::chrono::duration<float, std::milli>{
     std::chrono::high_resolution_clock::now() - start}.count() << '\n';

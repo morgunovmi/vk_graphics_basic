@@ -16,6 +16,11 @@ layout(std430, binding = 1) buffer s
     float smoothed[];
 };
 
+layout(std430, binding = 2) buffer r
+{
+    int result;
+};
+
 void main() 
 {
     uint idx = gl_GlobalInvocationID.x;
@@ -27,5 +32,6 @@ void main()
             }
         }
         smoothed[idx] = values[idx] - accum / 7.0;
+        atomicAdd(result, int(smoothed[idx] / PushConstant.len * 1000000.0));
     }
 }
