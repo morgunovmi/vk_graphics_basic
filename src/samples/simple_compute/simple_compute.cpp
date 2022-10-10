@@ -76,28 +76,25 @@ void SimpleCompute::CreateDevice(uint32_t a_deviceId)
 void SimpleCompute::SetupSimplePipeline()
 {
   std::vector<std::pair<VkDescriptorType, uint32_t> > dtypes = {
-      {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             3}
+      {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             2}
   };
 
   // Создание и аллокация буферов
   m_values = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                                                        VK_BUFFER_USAGE_TRANSFER_DST_BIT);
-
-  m_smoothed = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
                                                                   
   m_result = vk_utils::createBuffer(m_device, sizeof(int), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                                                        VK_BUFFER_USAGE_TRANSFER_DST_BIT |
                                                                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
-  vk_utils::allocateAndBindWithPadding(m_device, m_physicalDevice, {m_values, m_smoothed, m_result}, 0);
+  vk_utils::allocateAndBindWithPadding(m_device, m_physicalDevice, {m_values, m_result}, 0);
 
   m_pBindings = std::make_shared<vk_utils::DescriptorMaker>(m_device, dtypes, 1);
 
   // Создание descriptor set для передачи буферов в шейдер
   m_pBindings->BindBegin(VK_SHADER_STAGE_COMPUTE_BIT);
   m_pBindings->BindBuffer(0, m_values);
-  m_pBindings->BindBuffer(1, m_smoothed);
-  m_pBindings->BindBuffer(2, m_result);
+  m_pBindings->BindBuffer(1, m_result);
   m_pBindings->BindEnd(&m_sumDS, &m_sumDSLayout);
 
   // Заполнение буферов
@@ -108,8 +105,8 @@ void SimpleCompute::SetupSimplePipeline()
                  [&generator, &distribution]() { return distribution(generator); });
 
   m_pCopyHelper->UpdateBuffer(m_values, 0, vals.data(), sizeof(float) * vals.size());
-  int val = 0;
-  m_pCopyHelper->UpdateBuffer(m_result, 0, &val, sizeof(int));
+  int res = 0;
+  m_pCopyHelper->UpdateBuffer(m_result, 0, &res, sizeof(int));
 }
 
 void SimpleCompute::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkPipeline)
@@ -128,7 +125,7 @@ void SimpleCompute::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkPipeli
 
   vkCmdPushConstants(a_cmdBuff, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(m_length), &m_length);
 
-  vkCmdDispatch(a_cmdBuff, m_length / 1024 + 1, 1, 1);
+  vkCmdDispatch(a_cmdBuff, m_length / 512 + 1, 1, 1);
 
   VK_CHECK_RESULT(vkEndCommandBuffer(a_cmdBuff));
 }
@@ -141,7 +138,6 @@ void SimpleCompute::CleanupPipeline()
   }
 
   vkDestroyBuffer(m_device, m_values, nullptr);
-  vkDestroyBuffer(m_device, m_smoothed, nullptr);
   vkDestroyBuffer(m_device, m_result, nullptr);
 
   vkDestroyPipelineLayout(m_device, m_layout, nullptr);

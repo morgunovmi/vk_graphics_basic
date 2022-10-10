@@ -79,7 +79,7 @@ private:
   VkPipeline m_pipeline;
   VkPipelineLayout m_layout;
 
-  VkBuffer m_values, m_smoothed, m_result;
+  VkBuffer m_values, m_result;
 
   void ExecuteOnCpu();
  
