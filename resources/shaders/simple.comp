@@ -13,19 +13,17 @@ layout(std430, binding = 0) buffer v
 
 layout(std430, binding = 1) buffer r
 {
-    int result;
+    float result[];
 };
 
 void main() 
 {
     uint idx = gl_GlobalInvocationID.x;
     if (idx < PushConstant.len) {
-        float accum = 0;
+        float accum = 0.0;
         for (int i = -3; i <= 3; ++i) {
-            if (idx + i >= 0 && idx + i < PushConstant.len) {
-                accum += values[idx + i];
-            }
+            accum += values[idx + i];
         }
-        atomicAdd(result, int((values[idx] - accum / 7.0) / PushConstant.len * 1000000.0));
+        result[idx] = values[idx] - accum / 7.0;
     }
 }

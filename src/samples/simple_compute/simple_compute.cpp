@@ -83,8 +83,7 @@ void SimpleCompute::SetupSimplePipeline()
   m_values = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                                                        VK_BUFFER_USAGE_TRANSFER_DST_BIT);
                                                                   
-  m_result = vk_utils::createBuffer(m_device, sizeof(int), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                                                       VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+  m_result = vk_utils::createBuffer(m_device, sizeof(float) * m_length, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                                                        VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
 
   vk_utils::allocateAndBindWithPadding(m_device, m_physicalDevice, {m_values, m_result}, 0);
@@ -99,17 +98,15 @@ void SimpleCompute::SetupSimplePipeline()
 
   // Заполнение буферов
   std::default_random_engine generator{42};
-  std::uniform_real_distribution distribution{0.0f, 10000.0f};
+  std::uniform_real_distribution distribution{-100000.0f, 100000.0f};
   std::vector<float> vals(m_length);
   std::generate_n(vals.begin(), m_length,
                  [&generator, &distribution]() { return distribution(generator); });
 
   m_pCopyHelper->UpdateBuffer(m_values, 0, vals.data(), sizeof(float) * vals.size());
-  int res = 0;
-  m_pCopyHelper->UpdateBuffer(m_result, 0, &res, sizeof(int));
 }
 
-void SimpleCompute::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkPipeline)
+void SimpleCompute::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkPipeline a_pipeline)
 {
   vkResetCommandBuffer(a_cmdBuff, 0);
 
@@ -120,7 +117,7 @@ void SimpleCompute::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkPipeli
   // Заполняем буфер команд
   VK_CHECK_RESULT(vkBeginCommandBuffer(a_cmdBuff, &beginInfo));
 
-  vkCmdBindPipeline      (a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_pipeline);
+  vkCmdBindPipeline      (a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, a_pipeline);
   vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_layout, 0, 1, &m_sumDS, 0, NULL);
 
   vkCmdPushConstants(a_cmdBuff, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(m_length), &m_length);
@@ -141,7 +138,8 @@ void SimpleCompute::CleanupPipeline()
   vkDestroyBuffer(m_device, m_result, nullptr);
 
   vkDestroyPipelineLayout(m_device, m_layout, nullptr);
-  vkDestroyPipeline(m_device, m_pipeline, nullptr);
+  for (std::size_t i = 0; i < 2; ++i)
+    vkDestroyPipeline(m_device, m_pipelines[i], nullptr);
 }
 
 void SimpleCompute::Cleanup()
@@ -156,22 +154,27 @@ void SimpleCompute::Cleanup()
 
 void SimpleCompute::CreateComputePipeline()
 {
-  // Загружаем шейдер
-  std::vector<uint32_t> code = vk_utils::readSPVFile("../resources/shaders/simple.comp.spv");
-  VkShaderModuleCreateInfo createInfo = {};
-  createInfo.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-  createInfo.pCode    = code.data();
-  createInfo.codeSize = code.size()*sizeof(uint32_t);
-    
-  VkShaderModule shaderModule;
-  // Создаём шейдер в вулкане
-  VK_CHECK_RESULT(vkCreateShaderModule(m_device, &createInfo, NULL, &shaderModule));
+  // Загружаем шейдеры
+  VkPipelineShaderStageCreateInfo shaderStageCreateInfos[2]{};
+  VkShaderModule shaderModules[2]{};
 
-  VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
-  shaderStageCreateInfo.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-  shaderStageCreateInfo.stage  = VK_SHADER_STAGE_COMPUTE_BIT;
-  shaderStageCreateInfo.module = shaderModule;
-  shaderStageCreateInfo.pName  = "main";
+  std::size_t i = 0;
+  for (const auto & file : {"../resources/shaders/simple.comp.spv", "../resources/shaders/simple_with_shared.comp.spv"})
+  {
+    std::vector<uint32_t> code = vk_utils::readSPVFile(file);
+    VkShaderModuleCreateInfo createInfo = {};
+    createInfo.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.pCode    = code.data();
+    createInfo.codeSize = code.size() * sizeof(uint32_t);
+    // Создаём шейдер в вулкане
+    VK_CHECK_RESULT(vkCreateShaderModule(m_device, &createInfo, NULL, &shaderModules[i]));
+
+    shaderStageCreateInfos[i].sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStageCreateInfos[i].stage  = VK_SHADER_STAGE_COMPUTE_BIT;
+    shaderStageCreateInfos[i].module = shaderModules[i];
+    shaderStageCreateInfos[i].pName  = "main";
+    ++i;
+  }
 
   VkPushConstantRange pcRange = {};
   pcRange.offset = 0;
@@ -185,23 +188,27 @@ void SimpleCompute::CreateComputePipeline()
   pipelineLayoutCreateInfo.pSetLayouts    = &m_sumDSLayout;
   pipelineLayoutCreateInfo.pushConstantRangeCount = 1;
   pipelineLayoutCreateInfo.pPushConstantRanges = &pcRange;
-  VK_CHECK_RESULT(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, NULL, &m_layout));
+  VK_CHECK_RESULT(vkCreatePipelineLayout(m_device, &pipelineLayoutCreateInfo, nullptr, &m_layout));
 
-  VkComputePipelineCreateInfo pipelineCreateInfo = {};
-  pipelineCreateInfo.sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
-  pipelineCreateInfo.stage  = shaderStageCreateInfo;
-  pipelineCreateInfo.layout = m_layout;
+  VkComputePipelineCreateInfo pipelineCreateInfos[2]{};
+  pipelineCreateInfos[0].sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+  pipelineCreateInfos[0].stage  = shaderStageCreateInfos[0];
+  pipelineCreateInfos[0].layout = m_layout;
+  pipelineCreateInfos[1].sType  = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+  pipelineCreateInfos[1].stage  = shaderStageCreateInfos[1];
+  pipelineCreateInfos[1].layout = m_layout;
 
   // Создаём pipeline - объект, который выставляет шейдер и его параметры
-  VK_CHECK_RESULT(vkCreateComputePipelines(m_device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, NULL, &m_pipeline));
+  VK_CHECK_RESULT(vkCreateComputePipelines(m_device, VK_NULL_HANDLE, 2, pipelineCreateInfos, nullptr, m_pipelines));
 
-  vkDestroyShaderModule(m_device, shaderModule, nullptr);
+  for (std::size_t j = 0; j < 2; ++j)
+    vkDestroyShaderModule(m_device, shaderModules[j], nullptr);
 }
 
 void SimpleCompute::ExecuteOnCpu()
 {
   std::default_random_engine generator{42};
-  std::uniform_real_distribution distribution{0.0f, 10000.0f};
+  std::uniform_real_distribution distribution{-100000.0f, 100000.0f};
   std::vector<float> vals{};
   std::generate_n(std::back_inserter(vals), m_length,
                  [&generator, &distribution]() { return distribution(generator); });
@@ -209,6 +216,7 @@ void SimpleCompute::ExecuteOnCpu()
   std::vector<float> smoothed(vals.size());
 
   std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+
   for (int i = 0; i < vals.size(); ++i) {
     float accum = 0;
     for (int j = -3; j <= 3; ++j) {
@@ -216,13 +224,10 @@ void SimpleCompute::ExecuteOnCpu()
         accum += vals[i + j];
       }
     }
-    smoothed[i] = accum / 7;
+    smoothed[i] = vals[i] - accum / 7.0f;
   }
 
-  std::transform(smoothed.begin(), smoothed.end(), vals.begin(), smoothed.begin(),
-                [](auto a, auto b){ return b - a; });
-  
-  const auto avg = std::accumulate(smoothed.begin(), smoothed.end(), 0.0) / smoothed.size();
+  const float avg = std::accumulate(smoothed.begin(), smoothed.end(), 0.0f) / smoothed.size();
   std::cout << "Result on CPU: " << avg << '\n';
   std::cout << "Time on CPU: " << 
     std::chrono::duration<float, std::milli>{
@@ -236,8 +241,6 @@ void SimpleCompute::Execute()
   SetupSimplePipeline();
   CreateComputePipeline();
 
-  BuildCommandBufferSimple(m_cmdBufferCompute, nullptr);
-
   VkSubmitInfo submitInfo = {};
   submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
   submitInfo.commandBufferCount = 1;
@@ -247,20 +250,27 @@ void SimpleCompute::Execute()
   fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
   fenceCreateInfo.flags = 0;
   VK_CHECK_RESULT(vkCreateFence(m_device, &fenceCreateInfo, NULL, &m_fence));
+  
+  for (std::size_t i = 0; i < 2; ++i)
+  {
+    BuildCommandBufferSimple(m_cmdBufferCompute, m_pipelines[i]);
 
-  std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point start = std::chrono::high_resolution_clock::now();
 
-  // Отправляем буфер команд на выполнение
-  VK_CHECK_RESULT(vkQueueSubmit(m_computeQueue, 1, &submitInfo, m_fence));
+    // Отправляем буфер команд на выполнение
+    VK_CHECK_RESULT(vkQueueSubmit(m_computeQueue, 1, &submitInfo, m_fence));
 
-  //Ждём конца выполнения команд
-  VK_CHECK_RESULT(vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, 100000000000));
+    //Ждём конца выполнения команд
+    VK_CHECK_RESULT(vkWaitForFences(m_device, 1, &m_fence, VK_TRUE, 100000000000));
 
-  int result = 0;
-  m_pCopyHelper->ReadBuffer(m_result, 0, &result, sizeof(int));
+    std::vector<float> result(m_length);
+    m_pCopyHelper->ReadBuffer(m_result, 0, result.data(), sizeof(float) * result.size());
 
-  std::cout << "Result on GPU: " << static_cast<float>(result) / 1000000.f << '\n';
-  std::cout << "Time on GPU: " << 
-  std::chrono::duration<float, std::milli>{
-    std::chrono::high_resolution_clock::now() - start}.count() << '\n';
+    const float avg = std::accumulate(result.begin(), result.end(), 0.0f) / result.size();
+    std::cout << "Result on GPU " << (i == 0 ? "basic: " : "using shared mem: ") << avg << '\n';
+    std::cout << "Time on GPU " << (i == 0 ? "basic: " : "using shared mem: ")
+     << std::chrono::duration<float, std::milli>{ std::chrono::high_resolution_clock::now() - start }.count() << '\n';
+
+    VK_CHECK_RESULT(vkResetFences(m_device, 1, &m_fence));
+  }
 }

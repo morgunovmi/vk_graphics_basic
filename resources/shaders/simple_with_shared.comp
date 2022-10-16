@@ -1,0 +1,42 @@
+#version 430
+
+layout( local_size_x = 512 ) in;
+
+layout( push_constant ) uniform params {
+  uint len;
+} PushConstant;
+
+layout(std430, binding = 0) buffer v
+{
+    float values[];
+};
+
+layout(std430, binding = 1) buffer r
+{
+    float result[];
+};
+
+const uint gSize = gl_WorkGroupSize.x;
+shared float[gSize + 6] localValues;
+
+void main() 
+{
+    const uint idx = gl_GlobalInvocationID.x;
+    const uint lidx = gl_LocalInvocationID.x;
+    const uint gIdx = gl_WorkGroupID.x;
+
+    localValues[lidx + 3] = values[idx];
+    localValues[0] = values[gIdx * gSize - 3];
+    localValues[1] = values[gIdx * gSize - 2];
+    localValues[2] = values[gIdx * gSize - 1];
+    localValues[gSize + 3] = values[(gIdx + 1) * gSize];
+    localValues[gSize + 4] = values[(gIdx + 1) * gSize + 1];
+    localValues[gSize + 5] = values[(gIdx + 1) * gSize + 2];
+    barrier();
+    
+    float accum = 0.0;
+    for (int i = -3; i <= 3; ++i) {
+        accum += localValues[lidx + i + 3];
+    }
+    result[idx] = localValues[lidx + 3] - accum / 7.0;
+}

@@ -76,7 +76,7 @@ private:
   VkDescriptorSet       m_sumDS; 
   VkDescriptorSetLayout m_sumDSLayout = nullptr;
   
-  VkPipeline m_pipeline;
+  VkPipeline m_pipelines[2];
   VkPipelineLayout m_layout;
 
   VkBuffer m_values, m_result;
