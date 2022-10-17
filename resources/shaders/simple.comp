@@ -22,7 +22,10 @@ void main()
     if (idx < PushConstant.len) {
         float accum = 0.0;
         for (int i = -3; i <= 3; ++i) {
-            accum += values[idx + i];
+            const int cur_idx = int(idx) + i;
+            if (cur_idx >= 0 && cur_idx < PushConstant.len) {
+                accum += values[cur_idx];
+            }
         }
         result[idx] = values[idx] - accum / 7.0;
     }
