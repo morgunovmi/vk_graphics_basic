@@ -36,6 +36,12 @@ int main()
     return 1;
   }
 
+#ifdef WIN32
+    std::system("cd ../resources/shaders && python compile_shadowmap_shaders.py");
+#else
+    std::system("cd ../resources/shaders && python3 compile_shadowmap_shaders.py");
+#endif
+
   auto* window = initWindow(WIDTH, HEIGHT);
 
   initVulkanGLFW(app, window, VULKAN_DEVICE_ID);
