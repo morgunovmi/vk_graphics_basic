@@ -28,4 +28,10 @@ struct UniformParams
   bool animateLightColor;
 };
 
+struct BBox
+{
+    vec4 min;// as_int(boxMin4f.w) may store index of the object inside the box (or start index of the object sequence)
+    vec4 max;
+};
+
 #endif //VK_GRAPHICS_BASIC_COMMON_H

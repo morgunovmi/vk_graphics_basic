@@ -36,11 +36,17 @@ int main()
     return 1;
   }
 
+  #ifdef WIN32
+    std::system("cd ../resources/shaders && python compile_simple_compute_shaders.py && python compile_shadowmap_shaders.py");
+#else
+    std::system("cd ../resources/shaders && python3 compile_simple_compute_shaders.py && python3 compile_shadowmap_shaders.py");
+#endif
+
   auto* window = initWindow(WIDTH, HEIGHT);
 
   initVulkanGLFW(app, window, VULKAN_DEVICE_ID);
 
-  app->LoadScene("../resources/scenes/043_cornell_normals/statex_00001.xml", false);
+  app->LoadScene("../resources/scenes/serapis/statex_00001.xml", false);
 
   mainLoop(app, window);
 
