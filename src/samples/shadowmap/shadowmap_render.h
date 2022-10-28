@@ -69,6 +69,7 @@ private:
   VkDevice         m_device         = VK_NULL_HANDLE;
   VkQueue          m_graphicsQueue  = VK_NULL_HANDLE;
   VkQueue          m_transferQueue  = VK_NULL_HANDLE;
+  VkQueue          m_computeQueue   = VK_NULL_HANDLE;
 
   vk_utils::QueueFID_T m_queueFamilyIDXs {UINT32_MAX, UINT32_MAX, UINT32_MAX};
 
@@ -89,14 +90,34 @@ private:
     float4x4 model;
   } pushConst2M;
 
+  struct
+  {
+    float4x4 projView;
+    Box4f bbox;
+    uint32_t instanceCount = 10000;
+  } computePushConst;
+  
   float4x4 m_worldViewProj;
-  float4x4 m_lightMatrix;    
+  float4x4 m_lightMatrix;
 
   UniformParams m_uniforms {};
   VkBuffer m_ubo = VK_NULL_HANDLE;
   VkDeviceMemory m_uboAlloc = VK_NULL_HANDLE;
   void* m_uboMappedMem = nullptr;
 
+  VkBuffer m_instanceMatrices = VK_NULL_HANDLE;
+  VkDeviceMemory m_instanceMatricesAlloc = VK_NULL_HANDLE;
+  void* m_instancemMatricesMappedMem = nullptr;
+
+  VkBuffer m_visibleIndices = VK_NULL_HANDLE;
+  VkDeviceMemory m_visibleIndicesAlloc = VK_NULL_HANDLE;
+  void* m_visibleIndicesMappedMem = VK_NULL_HANDLE;
+
+  VkBuffer m_visibleCount = VK_NULL_HANDLE;
+  VkDeviceMemory m_visibleCountAlloc = VK_NULL_HANDLE;
+  void* m_visibleCountMappedMem = VK_NULL_HANDLE;
+
+  pipeline_data_t m_computePipeline {};
   pipeline_data_t m_basicForwardPipeline {};
   pipeline_data_t m_shadowPipeline {};
 
@@ -136,6 +157,9 @@ private:
   VkDeviceMemory        m_memShadowMap = VK_NULL_HANDLE;
   VkDescriptorSet       m_quadDS; 
   VkDescriptorSetLayout m_quadDSLayout = nullptr;
+
+  VkDescriptorSet m_computeDS;
+  VkDescriptorSetLayout m_computeDSLayout = nullptr;
 
   struct InputControlMouseEtc
   {
@@ -179,7 +203,7 @@ private:
   void CleanupPipelineAndSwapchain();
   void RecreateSwapChain();
 
-  void CreateUniformBuffer();
+  void AllocateBuffers();
   void UpdateUniformBuffer(float a_time);
 
   void Cleanup();
