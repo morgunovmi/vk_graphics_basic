@@ -53,7 +53,7 @@ bool isVisible(mat4 mvp, BBox box)
             0.0 <= corner.z && corner.z <= corner.w;
     }
 
-    return true;
+    return inside;
 }
 
 void main()
@@ -61,7 +61,7 @@ void main()
     uint idx = gl_GlobalInvocationID.x;
     if (idx < PushConstant.instanceCount)
     {
-        mat4 mvp = instanceMatrices[idx] * PushConstant.mProjView;
+        mat4 mvp = PushConstant.mProjView * instanceMatrices[idx];
         if (isVisible(mvp, PushConstant.bbox))
         {
             uint newIndex = atomicAdd(visibleCount, 1);

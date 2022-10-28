@@ -4,6 +4,7 @@
 #include <geom/vk_mesh.h>
 #include <vk_pipeline.h>
 #include <vk_buffers.h>
+#include <random>
 
 SimpleShadowmapRender::SimpleShadowmapRender(uint32_t a_width, uint32_t a_height) : m_width(a_width), m_height(a_height)
 {
@@ -279,7 +280,7 @@ void SimpleShadowmapRender::AllocateBuffers()
 
   // Instance matrices buffer
 
-  m_instanceMatrices = vk_utils::createBuffer(m_device, sizeof(float4x4) * computePushConst.instanceCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, &memReq);
+  m_instanceMatrices = vk_utils::createBuffer(m_device, sizeof(float4x4) * computePushConst.instanceCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memReq);
 
   allocateInfo = {};
   allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -296,7 +297,7 @@ void SimpleShadowmapRender::AllocateBuffers()
 
   // Visible indices buffer
 
-  m_visibleIndices = vk_utils::createBuffer(m_device, sizeof(uint32_t) * computePushConst.instanceCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, &memReq);
+  m_visibleIndices = vk_utils::createBuffer(m_device, sizeof(uint32_t) * computePushConst.instanceCount, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memReq);
 
   allocateInfo = {};
   allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -313,7 +314,7 @@ void SimpleShadowmapRender::AllocateBuffers()
 
   // Visible instances counter buffer
 
-  m_visibleCount = vk_utils::createBuffer(m_device, sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, &memReq);
+  m_visibleCount = vk_utils::createBuffer(m_device, sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, &memReq);
 
   allocateInfo = {};
   allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -377,7 +378,6 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   indirectMem->firstIndex    = meshInfo.m_indexOffset;
   indirectMem->firstInstance = 0;
   indirectMem->indexCount    = meshInfo.m_indNum;
-  std::cout << "Visible in DrawSceneCmd : " << *static_cast<uint32_t *>(m_visibleCountMappedMem) << '\n';
   indirectMem->instanceCount = *static_cast<uint32_t *>(m_visibleCountMappedMem);
   indirectMem->vertexOffset  = meshInfo.m_vertexOffset;
 
@@ -418,12 +418,10 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
   {
     vkCmdBindPipeline      (a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.pipeline);
-    *static_cast<uint32_t*>(m_visibleCountMappedMem) = 0;
+    vkCmdFillBuffer(a_cmdBuff, m_visibleCount, 0, VK_WHOLE_SIZE, 0);
     
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.layout, 0, 1, &m_computeDS, 0, NULL);
-
     vkCmdPushConstants(a_cmdBuff, m_computePipeline.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(computePushConst), &computePushConst);
-
     vkCmdDispatch(a_cmdBuff, computePushConst.instanceCount / 32 + 1, 1, 1);
   }
 
@@ -437,7 +435,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
         .buffer        = m_visibleCount,
         .size          = VK_WHOLE_SIZE }
     };
-
+    
     vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                                     VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
                                     VK_DEPENDENCY_BY_REGION_BIT,
@@ -693,21 +691,26 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
 
   auto loadedCam = m_pScnMgr->GetCamera(0);
   m_cam.fov = loadedCam.fov;
-  m_cam.pos = float3(loadedCam.pos);
+  // m_cam.pos = float3(loadedCam.pos);
+  m_cam.pos = float3({0.f, 3.f, -5.f});
   m_cam.up  = float3(loadedCam.up);
   m_cam.lookAt = float3(loadedCam.lookAt);
   m_cam.tdist  = loadedCam.farPlane;
   UpdateView();
 
+  std::default_random_engine generator{42};
+  std::uniform_real_distribution offsetDistr{-2.f, 2.f};
+
+  const auto gridSize = std::sqrtf(computePushConst.instanceCount);
   auto* instanceMats = static_cast<float4x4*>(m_instancemMatricesMappedMem);
-  for (int i = 0; i < sqrt(computePushConst.instanceCount); i++)
+  for (std::size_t i = 0; i < gridSize; ++i)
   {
-    int offseti = (int)sqrt(computePushConst.instanceCount);
-    for (int j = 0; j < sqrt(computePushConst.instanceCount); j++)
+    for (std::size_t j = 0; j < gridSize; ++j)
     {
-      int offsetj = (int)sqrt(computePushConst.instanceCount);
-      instanceMats[i * offsetj + j] =
-          LiteMath::translate4x4(LiteMath::float3{ 6.0f * (i - offseti / 2), 0.0f, 6.0f * (j - offsetj / 2) });
+      instanceMats[i * static_cast<uint32_t>(gridSize) + j] = 
+      LiteMath::translate4x4(LiteMath::float3{5.0f * (i - gridSize / 2) + offsetDistr(generator),
+                                              -2.f + 0.1f * offsetDistr(generator),
+                                              5.0f * (j - gridSize / 2) + offsetDistr(generator)});
     }
   }
   computePushConst.bbox = m_pScnMgr->GetSceneBbox();
@@ -723,14 +726,6 @@ void SimpleShadowmapRender::DrawFrameSimple()
 {
   vkWaitForFences(m_device, 1, &m_frameFences[m_presentationResources.currentFrame], VK_TRUE, UINT64_MAX);
   vkResetFences(m_device, 1, &m_frameFences[m_presentationResources.currentFrame]);
-
-  uint32_t count = *static_cast<uint32_t*>(m_visibleCountMappedMem);
-  std::cout << "Visible in DrawFrameSimple : " << count << '\n';
-  auto * visible = static_cast<uint32_t*>(m_visibleIndicesMappedMem);
-  for (std::size_t i = 0; i < count; ++i) {
-    std::cout << visible[i] << ' ';
-  }
-  std::cout << '\n';
 
   uint32_t imageIdx;
   m_swapchain.AcquireNextImage(m_presentationResources.imageAvailable, &imageIdx);
@@ -788,5 +783,4 @@ void SimpleShadowmapRender::DrawFrame(float a_time, DrawMode a_mode)
     default:
       DrawFrameSimple();
   }
-
 }

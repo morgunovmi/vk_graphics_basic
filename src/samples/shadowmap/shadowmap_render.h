@@ -94,7 +94,7 @@ private:
   {
     float4x4 projView;
     Box4f bbox;
-    uint32_t instanceCount = 100;
+    uint32_t instanceCount = 10000;
   } computePushConst;
   
   float4x4 m_worldViewProj;
