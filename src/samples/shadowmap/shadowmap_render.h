@@ -94,7 +94,7 @@ private:
   {
     float4x4 projView;
     Box4f bbox;
-    uint32_t instanceCount = 10000;
+    uint32_t instanceCount = 100;
   } computePushConst;
   
   float4x4 m_worldViewProj;
@@ -111,11 +111,15 @@ private:
 
   VkBuffer m_visibleIndices = VK_NULL_HANDLE;
   VkDeviceMemory m_visibleIndicesAlloc = VK_NULL_HANDLE;
-  void* m_visibleIndicesMappedMem = VK_NULL_HANDLE;
+  void* m_visibleIndicesMappedMem = nullptr;
 
   VkBuffer m_visibleCount = VK_NULL_HANDLE;
   VkDeviceMemory m_visibleCountAlloc = VK_NULL_HANDLE;
-  void* m_visibleCountMappedMem = VK_NULL_HANDLE;
+  void* m_visibleCountMappedMem = nullptr;
+
+  VkBuffer m_indirectBuffer = VK_NULL_HANDLE;
+  VkDeviceMemory m_indirectBufferAlloc = VK_NULL_HANDLE;
+  void* m_indirectBufferMappedMem = nullptr;
 
   pipeline_data_t m_computePipeline {};
   pipeline_data_t m_basicForwardPipeline {};

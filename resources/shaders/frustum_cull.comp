@@ -53,7 +53,7 @@ bool isVisible(mat4 mvp, BBox box)
             0.0 <= corner.z && corner.z <= corner.w;
     }
 
-    return inside;
+    return true;
 }
 
 void main()
