@@ -377,6 +377,7 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   indirectMem->firstIndex    = meshInfo.m_indexOffset;
   indirectMem->firstInstance = 0;
   indirectMem->indexCount    = meshInfo.m_indNum;
+  std::cout << "Visible in DrawSceneCmd : " << *static_cast<uint32_t *>(m_visibleCountMappedMem) << '\n';
   indirectMem->instanceCount = *static_cast<uint32_t *>(m_visibleCountMappedMem);
   indirectMem->vertexOffset  = meshInfo.m_vertexOffset;
 
@@ -424,6 +425,25 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdPushConstants(a_cmdBuff, m_computePipeline.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(computePushConst), &computePushConst);
 
     vkCmdDispatch(a_cmdBuff, computePushConst.instanceCount / 32 + 1, 1, 1);
+  }
+
+  {
+    std::array barriers
+     {
+      VkBufferMemoryBarrier {
+        .sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .buffer        = m_visibleCount,
+        .size          = VK_WHOLE_SIZE }
+    };
+
+    vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                    VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+                                    VK_DEPENDENCY_BY_REGION_BIT,
+                                    0, nullptr,
+                                    static_cast<uint32_t>(barriers.size()), barriers.data(),
+                                    0, nullptr);
   }
 
   //// draw scene to shadowmap
@@ -705,7 +725,7 @@ void SimpleShadowmapRender::DrawFrameSimple()
   vkResetFences(m_device, 1, &m_frameFences[m_presentationResources.currentFrame]);
 
   uint32_t count = *static_cast<uint32_t*>(m_visibleCountMappedMem);
-  std::cout << "Visible : " << count << '\n';
+  std::cout << "Visible in DrawFrameSimple : " << count << '\n';
   auto * visible = static_cast<uint32_t*>(m_visibleIndicesMappedMem);
   for (std::size_t i = 0; i < count; ++i) {
     std::cout << visible[i] << ' ';
