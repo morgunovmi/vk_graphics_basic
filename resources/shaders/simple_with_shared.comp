@@ -21,28 +21,39 @@ shared float localValues[gSize + 6];
 
 void main() 
 {
-    const uint idx = gl_GlobalInvocationID.x;
-    const uint lidx = gl_LocalInvocationID.x;
-    const uint gIdx = gl_WorkGroupID.x;
+    const uint global_id = gl_GlobalInvocationID.x;
+    const uint local_id = gl_LocalInvocationID.x;
 
-    localValues[lidx + 3] = values[idx];
-    const int start = int(gIdx * gSize);
-    const int end = int((gIdx + 1) * gSize);
-    for (int i = 0; i < 3; ++i)
+    localValues[local_id + 3] = values[global_id];
+    if (local_id < 3)
     {
-        const int cur_idx = start - 3 + i;
-        if (cur_idx >= 0 && cur_idx < PushConstant.len)
-            localValues[i] = values[cur_idx];
+        if (int(global_id) - 3 < 0)
+        {
+            localValues[local_id] = 0;
+        }
+        else
+        {
+            localValues[local_id] = values[int(global_id) - 3];
+        }
+    }
 
-        const int cur_idx_end = end + i;
-        if (cur_idx_end >= 0 && cur_idx_end < PushConstant.len)
-            localValues[gSize + 3 + i] = values[cur_idx_end];
+    if (local_id > gSize - 3 - 1)
+    {
+        int offset = int(local_id - gSize);
+        if (int(global_id) + 3 > PushConstant.len - 1)
+        {
+            localValues[local_id + 6] = 0;
+        }
+        else
+        {
+            localValues[local_id + 6] = values[int(global_id) + 3];
+        }
     }
     barrier();
     
     float accum = 0.0;
     for (int i = -3; i <= 3; ++i) {
-        accum += localValues[int(lidx) + i + 3];
+        accum += localValues[int(local_id) + i + 3];
     }
-    result[idx] = localValues[lidx + 3] - accum / 7.0;
+    result[global_id] = localValues[local_id + 3] - accum / 7.0;
 }
