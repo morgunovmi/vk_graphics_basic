@@ -98,6 +98,7 @@ private:
   void* m_uboMappedMem = nullptr;
 
   pipeline_data_t m_basicForwardPipeline {};
+  pipeline_data_t m_normalDisplayPipeline {};
   pipeline_data_t m_shadowPipeline {};
 
   VkDescriptorSet m_dSet = VK_NULL_HANDLE;
@@ -140,6 +141,7 @@ private:
   struct InputControlMouseEtc
   {
     bool drawFSQuad = false;
+    bool displayNormals = true;
   } m_input;
 
   /**

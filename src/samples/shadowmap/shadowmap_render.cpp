@@ -165,7 +165,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   
   auto shadowMap = m_pShadowMap2->m_attachments[m_shadowMapId];
 
-  m_pBindings->BindBegin(VK_SHADER_STAGE_GEOMETRY_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+  m_pBindings->BindBegin(VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
   m_pBindings->BindBuffer(0, m_ubo, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
   m_pBindings->BindImage (1, shadowMap.view, m_pShadowMap2->m_sampler, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
   m_pBindings->BindEnd(&m_dSet, &m_dSetLayout);
@@ -189,6 +189,17 @@ void SimpleShadowmapRender::SetupSimplePipeline()
     m_basicForwardPipeline.pipeline = VK_NULL_HANDLE;
   }
 
+  if(m_normalDisplayPipeline.layout != VK_NULL_HANDLE)
+  {
+    vkDestroyPipelineLayout(m_device, m_normalDisplayPipeline.layout, nullptr);
+    m_normalDisplayPipeline.layout = VK_NULL_HANDLE;
+  }
+  if(m_normalDisplayPipeline.pipeline != VK_NULL_HANDLE)
+  {
+    vkDestroyPipeline(m_device, m_normalDisplayPipeline.pipeline, nullptr);
+    m_normalDisplayPipeline.pipeline = VK_NULL_HANDLE;
+  }
+
   if(m_shadowPipeline.pipeline != VK_NULL_HANDLE)
   {
     vkDestroyPipeline(m_device, m_shadowPipeline.pipeline, nullptr);
@@ -203,7 +214,6 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   {
     shader_paths[VK_SHADER_STAGE_FRAGMENT_BIT] = "../resources/shaders/simple_shadow.frag.spv";
     shader_paths[VK_SHADER_STAGE_VERTEX_BIT]   = "../resources/shaders/simple.vert.spv";
-    shader_paths[VK_SHADER_STAGE_GEOMETRY_BIT] = "../resources/shaders/simple.geom.spv";
   }
   maker.LoadShaders(m_device, shader_paths);
 
@@ -213,13 +223,28 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   m_basicForwardPipeline.pipeline = maker.MakePipeline(m_device, m_pScnMgr->GetPipelineVertexInputStateCreateInfo(),
                                                        m_screenRenderPass);
                                                        //, {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR}
+
+  // Normal display pipeline
+
+  shader_paths.clear();
+  {
+    shader_paths[VK_SHADER_STAGE_FRAGMENT_BIT] = "../resources/shaders/normal_display.frag.spv";
+    shader_paths[VK_SHADER_STAGE_VERTEX_BIT]   = "../resources/shaders/normal_display.vert.spv";
+    shader_paths[VK_SHADER_STAGE_GEOMETRY_BIT] = "../resources/shaders/normal_display.geom.spv";
+  }
+  maker.LoadShaders(m_device, shader_paths);
+
+  m_normalDisplayPipeline.layout = maker.MakeLayout(m_device, {m_dSetLayout}, sizeof(pushConst2M));
+  maker.SetDefaultState(m_width, m_height);
+
+  m_normalDisplayPipeline.pipeline = maker.MakePipeline(m_device, m_pScnMgr->GetPipelineVertexInputStateCreateInfo(),
+                                                       m_screenRenderPass);
   
   // pipeline for rendering objects to shadowmap
   //
   // maker.SetDefaultState(m_width, m_height);
   shader_paths.clear();
   shader_paths[VK_SHADER_STAGE_VERTEX_BIT] = "../resources/shaders/simple.vert.spv";
-  shader_paths[VK_SHADER_STAGE_GEOMETRY_BIT] = "../resources/shaders/simple.geom.spv";
 
   maker.LoadShaders(m_device, shader_paths);
 
@@ -327,7 +352,6 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   VkRenderPassBeginInfo renderToShadowMap = m_pShadowMap2->GetRenderPassBeginInfo(0, clear);
   vkCmdBeginRenderPass(a_cmdBuff, &renderToShadowMap, VK_SUBPASS_CONTENTS_INLINE);
   {
-    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.layout, 0, 1, &m_dSet, 0, VK_NULL_HANDLE);
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.pipeline);
     DrawSceneCmd(a_cmdBuff, m_lightMatrix);
   }
@@ -356,6 +380,15 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
 
+    // Draw normals
+    
+    if (m_input.displayNormals)
+    {
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_normalDisplayPipeline.pipeline);
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_normalDisplayPipeline.layout, 0, 1, &m_dSet, 0, VK_NULL_HANDLE);
+
+      DrawSceneCmd(a_cmdBuff, m_worldViewProj);
+    }
     vkCmdEndRenderPass(a_cmdBuff);
   }
 
@@ -458,6 +491,17 @@ void SimpleShadowmapRender::Cleanup()
     vkDestroyPipelineLayout(m_device, m_basicForwardPipeline.layout, nullptr);
   }
 
+  if(m_normalDisplayPipeline.layout != VK_NULL_HANDLE)
+  {
+    vkDestroyPipelineLayout(m_device, m_normalDisplayPipeline.layout, nullptr);
+    m_normalDisplayPipeline.layout = VK_NULL_HANDLE;
+  }
+  if(m_normalDisplayPipeline.pipeline != VK_NULL_HANDLE)
+  {
+    vkDestroyPipeline(m_device, m_normalDisplayPipeline.pipeline, nullptr);
+    m_normalDisplayPipeline.pipeline = VK_NULL_HANDLE;
+  }
+
   if (m_presentationResources.imageAvailable != VK_NULL_HANDLE)
   {
     vkDestroySemaphore(m_device, m_presentationResources.imageAvailable, nullptr);
@@ -483,6 +527,10 @@ void SimpleShadowmapRender::ProcessInput(const AppInput &input)
 
   if(input.keyReleased[GLFW_KEY_P])
     m_light.usePerspectiveM = !m_light.usePerspectiveM;
+
+  if(input.keyPressed[GLFW_KEY_N])
+    m_input.displayNormals = !m_input.displayNormals;
+
 
   // recreate pipeline to reload shaders
   if(input.keyPressed[GLFW_KEY_B])
