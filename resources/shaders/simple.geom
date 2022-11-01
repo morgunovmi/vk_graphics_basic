@@ -52,15 +52,23 @@ void main()
 {
     vec3 normal = GetNormal();
 
-    for (uint i = 0; i < gl_in.length(); ++i)
-    {
-        gs_out.wPos = explode(gs_in[i].wPos, normal);
-        gl_Position = params.mProjView * vec4(gs_out.wPos, 1.0);
-        gs_out.wNorm = gs_in[i].wNorm;
-        gs_out.wTangent = gs_in[i].wTangent;
-        gs_out.texCoord = gs_in[i].texCoord;
-        EmitVertex();
-    }
-
+    gs_out.wPos = explode(gs_in[0].wPos, normal);
+    gl_Position = params.mProjView * vec4(gs_out.wPos, 1.0);
+    gs_out.wNorm = gs_in[0].wNorm;
+    gs_out.wTangent = gs_in[0].wTangent;
+    gs_out.texCoord = gs_in[0].texCoord;
+    EmitVertex();
+    gs_out.wPos = explode(gs_in[1].wPos, normal);
+    gl_Position = params.mProjView * vec4(gs_out.wPos, 1.0);
+    gs_out.wNorm = gs_in[1].wNorm;
+    gs_out.wTangent = gs_in[1].wTangent;
+    gs_out.texCoord = gs_in[1].texCoord;
+    EmitVertex();
+    gs_out.wPos = explode(gs_in[2].wPos, normal);
+    gl_Position = params.mProjView * vec4(gs_out.wPos, 1.0);
+    gs_out.wNorm = gs_in[2].wNorm;
+    gs_out.wTangent = gs_in[2].wTangent;
+    gs_out.texCoord = gs_in[2].texCoord;
+    EmitVertex();
     EndPrimitive();
 }
