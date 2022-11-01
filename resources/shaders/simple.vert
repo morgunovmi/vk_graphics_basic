@@ -4,7 +4,6 @@
 
 #include "unpack_attributes.h"
 
-
 layout(location = 0) in vec4 vPosNorm;
 layout(location = 1) in vec4 vTexCoordAndTang;
 
@@ -14,14 +13,12 @@ layout(push_constant) uniform params_t
     mat4 mModel;
 } params;
 
-
-layout (location = 0 ) out VS_OUT
+layout (location = 0) out VS_OUT
 {
     vec3 wPos;
     vec3 wNorm;
     vec3 wTangent;
     vec2 texCoord;
-
 } vOut;
 
 out gl_PerVertex { vec4 gl_Position; };

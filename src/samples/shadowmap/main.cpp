@@ -42,6 +42,12 @@ int main()
 
   app->LoadScene("../resources/scenes/043_cornell_normals/statex_00001.xml", false);
 
+#ifdef WIN32
+    std::system("cd ../resources/shaders && python compile_shadowmap_shaders.py");
+#else
+    std::system("cd ../resources/shaders && python3 compile_shadowmap_shaders.py");
+#endif
+
   mainLoop(app, window);
 
   return 0;
