@@ -27,27 +27,13 @@ void main()
     localValues[local_id + 3] = values[global_id];
     if (local_id < 3)
     {
-        if (int(global_id) - 3 < 0)
-        {
-            localValues[local_id] = 0;
-        }
-        else
-        {
-            localValues[local_id] = values[int(global_id) - 3];
-        }
+     	localValues[local_id] = int(global_id) - 3 < 0 ?
+            0 : values[int(global_id) - 3];
     }
-
     if (local_id > gSize - 3 - 1)
     {
-        int offset = int(local_id - gSize);
-        if (int(global_id) + 3 > PushConstant.len - 1)
-        {
-            localValues[local_id + 6] = 0;
-        }
-        else
-        {
-            localValues[local_id + 6] = values[int(global_id) + 3];
-        }
+        localValues[local_id + 6] = int(global_id) + 3 > PushConstant.len - 1 ?
+            0 : values[int(global_id) + 3];
     }
     barrier();
     
