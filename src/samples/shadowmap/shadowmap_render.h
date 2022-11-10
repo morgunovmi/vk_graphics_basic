@@ -48,6 +48,11 @@ private:
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
+  struct {
+    etna::Image gPositions;
+    etna::Image gNormals;
+  } gBuffer;
+
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
   struct
@@ -73,8 +78,9 @@ private:
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
 
-  etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_offscreenPipeline {};
+  etna::GraphicsPipeline m_deferredPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -137,6 +143,7 @@ private:
   void loadShaders();
 
   void SetupSimplePipeline();
+  void SetupDeferredPipeline();
   void RecreateSwapChain();
 
   void UpdateUniformBuffer(float a_time);
