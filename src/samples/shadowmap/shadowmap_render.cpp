@@ -76,6 +76,8 @@ void SimpleShadowmapRender::DeallocateResources()
   shadowMap.reset();
 
   constants = etna::Buffer();
+
+  m_swapchain.Cleanup();
 }
 
 /// PIPELINES CREATION

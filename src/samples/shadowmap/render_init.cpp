@@ -69,4 +69,5 @@ SimpleShadowmapRender::~SimpleShadowmapRender()
   DeallocateResources();
   DestroyPipelines();
   ResetPresentStuff();
+  vkDestroySurfaceKHR(m_context->getInstance(), m_surface, nullptr);
 }
