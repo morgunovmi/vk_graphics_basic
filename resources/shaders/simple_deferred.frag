@@ -11,18 +11,31 @@ layout (location = 0 ) in VS_OUT
   vec2 texCoord;
 } vOut;
 
+layout(push_constant) uniform params_t
+{
+    mat4 mProjView;
+} params;
+
 layout(binding = 0, set = 0) uniform AppData
 {
   UniformParams Params;
 };
 
 layout (binding = 1) uniform sampler2D shadowMap;
-layout (binding = 2) uniform sampler2D gPositions;
-layout (binding = 3) uniform sampler2D gNormals;
+layout (binding = 2) uniform sampler2D gNormals;
+layout (binding = 3) uniform sampler2D depth;
 
 void main()
 {
-  const vec4 wPos = textureLod(gPositions, vOut.texCoord, 0);
+  float x = vOut.texCoord.x * 2 - 1;
+  float y = (1 - vOut.texCoord.y) * 2 - 1;
+  float z = textureLod(depth, vOut.texCoord, 0).x;
+
+  vec4 projectedPos = vec4(x, y, z, 1.0f);
+  vec4 positionWS = inverse(params.mProjView) * projectedPos;
+  vec4 wPos = vec4(positionWS.xyz / positionWS.w, 1.0f);
+  wPos.y = -wPos.y;
+  
   const vec4 wNorm = textureLod(gNormals, vOut.texCoord, 0);
   const vec4 posLightClipSpace = Params.lightMatrix * wPos; // 
   const vec3 posLightSpaceNDC  = posLightClipSpace.xyz / posLightClipSpace.w;    // for orto matrix, we don't need perspective division, you can remove it if you want; this is general case;
@@ -36,7 +49,7 @@ void main()
 
   vec4 lightColor1 = mix(dark_violet, chartreuse, abs(sin(Params.time)));
   vec4 lightColor2 = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-   
+  
   vec3 lightDir   = normalize(Params.lightPos - wPos.xyz);
   vec4 lightColor = max(dot(wNorm.xyz, lightDir), 0.0f) * lightColor1;
   out_fragColor   = (lightColor * shadow + vec4(0.1f)) * vec4(Params.baseColor, 1.0f);

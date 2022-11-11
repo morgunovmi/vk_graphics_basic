@@ -15,12 +15,6 @@
 
 void SimpleShadowmapRender::AllocateResources()
 {
-  gBuffer.positions = m_context->createImage(etna::Image::CreateInfo{
-    .extent = vk::Extent3D{m_width, m_height, 1},
-    .format = vk::Format::eR16G16B16A16Sfloat,
-    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
-  });
-
   gBuffer.normals = m_context->createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{m_width, m_height, 1},
     .format = vk::Format::eR16G16B16A16Sfloat,
@@ -31,6 +25,13 @@ void SimpleShadowmapRender::AllocateResources()
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
     .format = vk::Format::eD32Sfloat,
+    .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+
+  dummyDepth = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{m_width, m_height, 1},
+    .format = vk::Format::eD16Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment
   });
 
@@ -70,10 +71,10 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
 
 void SimpleShadowmapRender::DeallocateResources()
 {
-  gBuffer.positions.reset();
   gBuffer.normals.reset();
   mainViewDepth.reset(); // TODO: Make an etna method to reset all the resources
   shadowMap.reset();
+  dummyDepth.reset();
 
   constants = etna::Buffer();
 
@@ -164,7 +165,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
                       | vk::ColorComponentFlagBits::eB
                       | vk::ColorComponentFlagBits::eA
   };
-  for (size_t i = 0; i < 2; i++) {
+  for (size_t i = 0; i < 1; i++) {
     colorAttachmentStates.push_back(blendState);
   }
 
@@ -184,7 +185,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
     .blendingConfig = colorAttachmentStates,
     .fragmentShaderOutput =
       {
-        .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat},
+        .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat},
         .depthAttachmentFormat = vk::Format::eD32Sfloat
       }
   });
@@ -201,7 +202,7 @@ void SimpleShadowmapRender::SetupDeferredPipeline()
     .fragmentShaderOutput =
       {
         .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
-        .depthAttachmentFormat = vk::Format::eD32Sfloat
+        .depthAttachmentFormat = vk::Format::eD16Unorm
       }
   });
   print_prog_info("simple_deferred");
@@ -278,16 +279,16 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
           .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
           .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
           .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
-          .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-          .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+          .dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT,
+          .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
           .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-          .newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+          .newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
           .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
           .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-          .image = gBuffer.positions.get(),
+          .image = mainViewDepth.get(),
           .subresourceRange =
             {
-              .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+              .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
               .baseMipLevel = 0,
               .levelCount = 1,
               .baseArrayLayer = 0,
@@ -340,7 +341,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //
   {
     etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height},
-             {{gBuffer.positions.getView({}), gBuffer.normals.getView({})}}, mainViewDepth.getView({}));
+             {{gBuffer.normals.getView({})}}, mainViewDepth.getView({}));
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_offscreenPipeline.getVkPipeline());
 
@@ -372,6 +373,27 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
               .layerCount = 1,
             }
         },
+        VkImageMemoryBarrier2
+        {
+          .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
+          .srcStageMask = VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+          .srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+          .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+          .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+          .oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+          .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .image = mainViewDepth.get(),
+          .subresourceRange =
+            {
+              .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
+              .baseMipLevel = 0,
+              .levelCount = 1,
+              .baseArrayLayer = 0,
+              .layerCount = 1,
+            }
+        },
         // Wait for the semaphore to signal that the swapchain image is available
         VkImageMemoryBarrier2
         {
@@ -386,27 +408,6 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
           .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
           .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
           .image = a_targetImage,
-          .subresourceRange =
-            {
-              .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-              .baseMipLevel = 0,
-              .levelCount = 1,
-              .baseArrayLayer = 0,
-              .layerCount = 1,
-            }
-        },
-        VkImageMemoryBarrier2
-        {
-          .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2,
-          .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-          .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-          .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-          .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-          .oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-          .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-          .image = gBuffer.positions.get(),
           .subresourceRange =
             {
               .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -456,17 +457,20 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     auto set = etna::create_descriptor_set(simpleDeferredInfo.getDescriptorLayoutId(0), {
       etna::Binding {0, vk::DescriptorBufferInfo {constants.get(), 0, VK_WHOLE_SIZE}},
       etna::Binding {1, vk::DescriptorImageInfo {defaultSampler.get(), shadowMap.getView({}), vk::ImageLayout::eShaderReadOnlyOptimal}},
-      etna::Binding {2, vk::DescriptorImageInfo {defaultSampler.get(), gBuffer.positions.getView({}), vk::ImageLayout::eShaderReadOnlyOptimal}},
-      etna::Binding {3, vk::DescriptorImageInfo {defaultSampler.get(), gBuffer.normals.getView({}), vk::ImageLayout::eShaderReadOnlyOptimal}},
+      etna::Binding {2, vk::DescriptorImageInfo {defaultSampler.get(), gBuffer.normals.getView({}), vk::ImageLayout::eShaderReadOnlyOptimal}},
+      etna::Binding {3, vk::DescriptorImageInfo {defaultSampler.get(), mainViewDepth.getView({}), vk::ImageLayout::eShaderReadOnlyOptimal}},
     });
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImageView}}, mainViewDepth.getView({}));
+    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImageView}}, dummyDepth.getView({}));
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_deferredPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
       m_deferredPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+    vkCmdPushConstants(a_cmdBuff, m_deferredPipeline.getVkPipelineLayout(),
+      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(LiteMath::float4x4), &m_worldViewProj);
 
     vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
   }
@@ -487,7 +491,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
         .srcAccessMask       = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
         .dstStageMask        = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
         .dstAccessMask       = 0,
-        .oldLayout           = VK_IMAGE_LAYOUT_UNDEFINED,
+        .oldLayout           = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .newLayout           = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,

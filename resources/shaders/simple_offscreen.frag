@@ -4,8 +4,7 @@
 
 #include "common.h"
 
-layout(location = 0) out vec4 gPosition;
-layout(location = 1) out vec4 gNormal;
+layout(location = 0) out vec4 gNormal;
 
 layout (location = 0) in VS_OUT
 {
@@ -15,6 +14,5 @@ layout (location = 0) in VS_OUT
 
 void main()
 {
-    gPosition = vec4(surf.wPos, 1.0);
     gNormal = vec4(surf.wNorm, 1.0);
 }
