@@ -49,8 +49,8 @@ private:
   etna::Buffer constants;
 
   struct {
-    etna::Image gPositions;
-    etna::Image gNormals;
+    etna::Image positions;
+    etna::Image normals;
   } gBuffer;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
