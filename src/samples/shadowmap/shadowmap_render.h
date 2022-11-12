@@ -73,6 +73,12 @@ private:
     float4x4 model;
   } pushConst2M;
 
+  struct
+  {
+    float4x4 projInverse;
+    float4x4 viewInverse;
+  } pushConstDeferred;
+
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 

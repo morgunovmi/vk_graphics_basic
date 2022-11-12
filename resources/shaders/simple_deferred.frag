@@ -13,7 +13,8 @@ layout (location = 0 ) in VS_OUT
 
 layout(push_constant) uniform params_t
 {
-    mat4 mProjView;
+    mat4 projInverse;
+    mat4 viewInverse;
 } params;
 
 layout(binding = 0, set = 0) uniform AppData
@@ -28,15 +29,12 @@ layout (binding = 4) uniform sampler2D depth;
 
 void main()
 {
-  // float x = vOut.texCoord.x * 2 - 1;
-  // float y = (1 - vOut.texCoord.y) * 2 - 1;
-  // float z = textureLod(depth, vOut.texCoord, 0).x;
+  float x = vOut.texCoord.x * 2.0 - 1.0;
+  float y = (1.0 - vOut.texCoord.y) * 2.0 - 1.0;
+  float z = textureLod(depth, vOut.texCoord, 0).x;
+  vec4 wPos = params.viewInverse * params.projInverse * vec4(x, y, z, 1.0);
+  wPos.y = - wPos.y;
 
-  // vec4 projectedPos = vec4(x, y, z, 1.0f);
-  // vec4 positionWS = inverse(params.mProjView) * projectedPos;
-  // vec4 wPos = vec4(positionWS.xyz / positionWS.w, 1.0f);
-  // wPos.y = -wPos.y;
-  const vec4 wPos = textureLod(gPositions, vOut.texCoord, 0);
   const vec4 wNorm = textureLod(gNormals, vOut.texCoord, 0);
   const vec4 posLightClipSpace = Params.lightMatrix * wPos; // 
   const vec3 posLightSpaceNDC  = posLightClipSpace.xyz / posLightClipSpace.w;    // for orto matrix, we don't need perspective division, you can remove it if you want; this is general case;

@@ -22,6 +22,8 @@ void SimpleShadowmapRender::UpdateView()
   auto mWorldViewProj = mProjFix * mProj * mLookAt;
   
   m_worldViewProj = mWorldViewProj;
+  pushConstDeferred.projInverse = LiteMath::inverse4x4(mProjFix * mProj);
+  pushConstDeferred.viewInverse = LiteMath::inverse4x4(mLookAt);
   
   ///// calc light matrix
   //

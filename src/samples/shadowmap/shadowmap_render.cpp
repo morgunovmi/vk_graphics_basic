@@ -30,7 +30,7 @@ void SimpleShadowmapRender::AllocateResources()
   mainViewDepth = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
-    .format = vk::Format::eD32Sfloat,
+    .format = vk::Format::eD16Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
@@ -193,7 +193,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
     .fragmentShaderOutput =
       {
         .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat},
-        .depthAttachmentFormat = vk::Format::eD32Sfloat
+        .depthAttachmentFormat = vk::Format::eD16Unorm
       }
   });
 
@@ -520,7 +520,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       m_deferredPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
     vkCmdPushConstants(a_cmdBuff, m_deferredPipeline.getVkPipelineLayout(),
-      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(LiteMath::float4x4), &m_worldViewProj);
+      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstDeferred), &pushConstDeferred);
 
     vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
   }
