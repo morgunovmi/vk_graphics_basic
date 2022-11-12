@@ -28,13 +28,6 @@ void SimpleShadowmapRender::AllocateResources()
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
-  dummyDepth = m_context->createImage(etna::Image::CreateInfo
-  {
-    .extent = vk::Extent3D{m_width, m_height, 1},
-    .format = vk::Format::eD16Unorm,
-    .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment
-  });
-
   shadowMap = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{2048, 2048, 1},
@@ -74,7 +67,6 @@ void SimpleShadowmapRender::DeallocateResources()
   gBuffer.normals.reset();
   mainViewDepth.reset(); // TODO: Make an etna method to reset all the resources
   shadowMap.reset();
-  dummyDepth.reset();
 
   constants = etna::Buffer();
 
@@ -199,10 +191,13 @@ void SimpleShadowmapRender::SetupDeferredPipeline()
   auto& pipelineManager = etna::get_context().getPipelineManager();
   m_deferredPipeline = pipelineManager.createGraphicsPipeline("simple_deferred",
   {
+    .depthConfig = 
+      {
+        .depthTestEnable = false,
+      },
     .fragmentShaderOutput =
       {
         .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
-        .depthAttachmentFormat = vk::Format::eD16Unorm
       }
   });
   print_prog_info("simple_deferred");
@@ -463,7 +458,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImageView}}, dummyDepth.getView({}));
+    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImageView}}, {});
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_deferredPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,

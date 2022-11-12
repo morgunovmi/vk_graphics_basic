@@ -45,7 +45,6 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
-  etna::Image dummyDepth;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
