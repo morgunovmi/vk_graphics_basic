@@ -23,9 +23,8 @@ layout(binding = 0, set = 0) uniform AppData
 };
 
 layout (binding = 1) uniform sampler2D shadowMap;
-layout (binding = 2) uniform sampler2D gPositions;
-layout (binding = 3) uniform sampler2D gNormals;
-layout (binding = 4) uniform sampler2D depth;
+layout (binding = 2) uniform sampler2D gNormals;
+layout (binding = 3) uniform sampler2D depth;
 
 void main()
 {
