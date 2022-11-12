@@ -73,7 +73,8 @@ private:
 
   struct
   {
-    float4x4 projViewInverse;
+    float4x4 projInverse;
+    float4x4 viewInverse;
   } pushConstDeferred;
 
   float4x4 m_worldViewProj;
