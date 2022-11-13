@@ -49,6 +49,7 @@ private:
   etna::Buffer constants;
 
   struct {
+    etna::Image albedo;
     etna::Image normals;
   } gBuffer;
 
