@@ -5,6 +5,7 @@
 #include <vk_buffers.h>
 #include <iostream>
 
+
 #include <etna/GlobalContext.hpp>
 #include <etna/Etna.hpp>
 #include <etna/RenderTargetStates.hpp>
@@ -17,13 +18,13 @@ void SimpleShadowmapRender::AllocateResources()
 {
   gBuffer.albedo = m_context->createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{m_width, m_height, 1},
-    .format = vk::Format::eR16G16B16A16Sfloat,
+    .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
   });
   
   gBuffer.normals = m_context->createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{m_width, m_height, 1},
-    .format = vk::Format::eR16G16B16A16Sfloat,
+    .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
@@ -66,6 +67,21 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   m_cam.up  = float3(loadedCam.up);
   m_cam.lookAt = float3(loadedCam.lookAt);
   m_cam.tdist  = loadedCam.farPlane;
+
+
+  std::random_device rd{};
+  std::default_random_engine gen{rd()};
+  std::uniform_real_distribution<float> colorDistr{0.0f, 1.0f};
+  objColors.clear();
+  for (size_t i = 0; i < m_pScnMgr->InstancesNum(); ++i)
+  {
+    objColors.emplace_back(LiteMath::float3{colorDistr(gen), colorDistr(gen), colorDistr(gen)});
+  }
+
+  for (const auto & c : objColors)
+  {
+    spdlog::info("({}, {}, {})", c.x, c.y, c.z);
+  }
 }
 
 void SimpleShadowmapRender::DeallocateResources()
@@ -184,7 +200,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
     .blendingConfig = colorAttachmentStates,
     .fragmentShaderOutput =
       {
-        .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat},
+        .colorAttachmentFormats = {vk::Format::eR32G32B32A32Sfloat, vk::Format::eR32G32B32A32Sfloat},
         .depthAttachmentFormat = vk::Format::eD16Unorm
       }
   });
@@ -233,6 +249,12 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   {
     auto inst         = m_pScnMgr->GetInstanceInfo(i);
     pushConst2M.model = m_pScnMgr->GetInstanceMatrix(i);
+
+    m_uniforms.baseColor = objColors[i];
+    const auto c =  objColors[i];
+    spdlog::info("Drawing with color ({}, {}, {})", c.x, c.y, c.z);
+    memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
+
     vkCmdPushConstants(a_cmdBuff, m_offscreenPipeline.getVkPipelineLayout(),
       stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
 
@@ -363,10 +385,20 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //// draw positions and normals to gbuffer
   //
   {
+    auto simpleDeferredInfo = etna::get_shader_program("simple_offscreen");
+
+    auto set = etna::create_descriptor_set(simpleDeferredInfo.getDescriptorLayoutId(0), {
+      etna::Binding {0, vk::DescriptorBufferInfo {constants.get(), 0, VK_WHOLE_SIZE}},
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
+
     etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height},
              {{gBuffer.albedo.getView({}), gBuffer.normals.getView({})}}, mainViewDepth.getView({}));
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_offscreenPipeline.getVkPipeline());
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+      m_offscreenPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
   }

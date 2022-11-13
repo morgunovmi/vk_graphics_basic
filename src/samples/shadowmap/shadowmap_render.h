@@ -13,6 +13,7 @@
 #include <vk_quad.h>
 
 #include <string>
+#include <random>
 #include <iostream>
 
 #include <etna/GlobalContext.hpp>
@@ -71,6 +72,8 @@ private:
     float4x4 projView;
     float4x4 model;
   } pushConst2M;
+  
+  std::vector<LiteMath::float3> objColors{};
 
   struct
   {
