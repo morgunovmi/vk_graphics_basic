@@ -4,6 +4,7 @@
 #include <vk_pipeline.h>
 #include <vk_buffers.h>
 #include <iostream>
+#include <random>
 
 
 #include <etna/GlobalContext.hpp>
@@ -67,6 +68,16 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   m_cam.up  = float3(loadedCam.up);
   m_cam.lookAt = float3(loadedCam.lookAt);
   m_cam.tdist  = loadedCam.farPlane;
+
+
+  std::random_device rd{};
+  std::default_random_engine gen{rd()};
+  std::uniform_real_distribution<float> colorDistr{0.0f, 1.0f};
+  objColors.clear();
+  for (size_t i = 0; i < m_pScnMgr->InstancesNum(); ++i)
+  {
+    objColors.emplace_back(LiteMath::float4{colorDistr(gen), colorDistr(gen), colorDistr(gen), 1.0f});
+  }
 }
 
 void SimpleShadowmapRender::DeallocateResources()
@@ -220,7 +231,7 @@ void SimpleShadowmapRender::DestroyPipelines()
 
 void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp)
 {
-  VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT);
+  VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
 
   VkDeviceSize zero_offset = 0u;
   VkBuffer vertexBuf = m_pScnMgr->GetVertexBuffer();
@@ -233,7 +244,12 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   for (uint32_t i = 0; i < m_pScnMgr->InstancesNum(); ++i)
   {
     auto inst         = m_pScnMgr->GetInstanceInfo(i);
-    pushConst2M.model = m_pScnMgr->GetInstanceMatrix(i);
+    auto model = m_pScnMgr->GetInstanceMatrix(i);
+
+    pushConst2M.modelRow1 = model.get_row(0);
+    pushConst2M.modelRow2 = model.get_row(1);
+    pushConst2M.modelRow3 = model.get_row(2);
+    pushConst2M.objColor = objColors[i];
     vkCmdPushConstants(a_cmdBuff, m_offscreenPipeline.getVkPipelineLayout(),
       stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
 
@@ -364,20 +380,10 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //// draw positions and normals to gbuffer
   //
   {
-    auto simpleOffscreenInfo = etna::get_shader_program("simple_offscreen");
-
-    auto set = etna::create_descriptor_set(simpleOffscreenInfo.getDescriptorLayoutId(0), {
-      etna::Binding {0, vk::DescriptorBufferInfo {constants.get(), 0, VK_WHOLE_SIZE}},
-    });
-
-    VkDescriptorSet vkSet = set.getVkSet();
-
     etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height},
              {{gBuffer.albedo.getView({}), gBuffer.normals.getView({})}}, mainViewDepth.getView({}));
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_offscreenPipeline.getVkPipeline());
-    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
-      m_offscreenPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
   }

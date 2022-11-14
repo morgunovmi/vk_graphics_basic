@@ -69,9 +69,13 @@ private:
   struct
   {
     float4x4 projView;
-    float4x4 model;
+    float4 modelRow1;
+    float4 modelRow2;
+    float4 modelRow3;
+    float4 objColor;
   } pushConst2M;
 
+  std::vector<LiteMath::float4> objColors{};
 
   struct
   {

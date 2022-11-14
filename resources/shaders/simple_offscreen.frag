@@ -7,23 +7,23 @@
 layout(location = 0) out vec4 gAlbedo;
 layout(location = 1) out vec4 gNormal;
 
-layout(binding = 0, set = 0) uniform AppData
-{
-  UniformParams Params;
-};
-
 layout (location = 0) in VS_OUT
 {
   vec3 wPos;
   vec3 wNorm;
 } surf;
 
-float rand(vec2 co){
-    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
-}
+layout(push_constant) uniform params_t
+{
+    mat4 mProjView;
+    vec4 modelRow1;
+    vec4 modelRow2;
+    vec4 modelRow3;
+    vec4 objColor;
+} params;
 
 void main()
 {
-    gAlbedo = vec4(rand(vec2(surf.wNorm.x, surf.wNorm.y)), 0.1, 0.7, 1.0);
+    gAlbedo = params.objColor;
     gNormal = vec4(surf.wNorm, 1.0);
 }
