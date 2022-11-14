@@ -19,7 +19,7 @@ void SimpleShadowmapRender::AllocateResources()
 {
   gBuffer.albedo = m_context->createImage(etna::Image::CreateInfo{
     .extent = vk::Extent3D{m_width, m_height, 1},
-    .format = vk::Format::eR16G16B16A16Sfloat,
+    .format = vk::Format::eR8G8B8A8Srgb,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
   });
   
@@ -196,7 +196,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
     .blendingConfig = colorAttachmentStates,
     .fragmentShaderOutput =
       {
-        .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat},
+        .colorAttachmentFormats = {vk::Format::eR8G8B8A8Srgb, vk::Format::eR16G16B16A16Sfloat},
         .depthAttachmentFormat = vk::Format::eD16Unorm
       }
   });
