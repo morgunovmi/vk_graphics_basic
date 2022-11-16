@@ -45,6 +45,8 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
+  etna::Image rawImage;
+  etna::Image filteredImage;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
@@ -67,6 +69,11 @@ private:
     float4x4 model;
   } pushConst2M;
 
+  struct 
+  {
+    float sigma;
+  } pushConstCompute;
+
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
@@ -75,6 +82,7 @@ private:
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::ComputePipeline m_computePipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
