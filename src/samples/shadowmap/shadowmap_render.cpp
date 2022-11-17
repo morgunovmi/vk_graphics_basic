@@ -40,14 +40,14 @@ void SimpleShadowmapRender::AllocateResources()
   rawImage = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
-    .format = vk::Format::eR16G16B16A16Sfloat,
+    .format = vk::Format::eR8G8B8A8Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
   filteredImage = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
-    .format = vk::Format::eR16G16B16A16Sfloat,
+    .format = vk::Format::eR8G8B8A8Unorm,
     .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc
   });
 
@@ -161,7 +161,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
       .vertexShaderInput = sceneVertexInputDesc,
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat},
+          .colorAttachmentFormats = {vk::Format::eR8G8B8A8Unorm},
           .depthAttachmentFormat = vk::Format::eD16Unorm
         }
     });

@@ -6,8 +6,8 @@ layout( push_constant ) uniform params {
   float sigma;
 } PushConstant;
 
-layout( binding = 0, rgba16f ) uniform readonly image2D rawImage;
-layout( binding = 1, rgba16f ) uniform image2D filteredImage;
+layout( binding = 0, rgba8 ) uniform readonly image2D rawImage;
+layout( binding = 1, rgba8 ) uniform writeonly image2D filteredImage;
 
 void main() 
 {
