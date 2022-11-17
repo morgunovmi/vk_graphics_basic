@@ -6,18 +6,16 @@ layout( push_constant ) uniform params {
   float sigma;
 } PushConstant;
 
-layout( binding = 0, rgba32f ) uniform readonly image2D rawImage;
-layout( binding = 1, rgba32f ) uniform image2D filteredImage;
+layout( binding = 0, rgba16f ) uniform readonly image2D rawImage;
+layout( binding = 1, rgba16f ) uniform image2D filteredImage;
 
 void main() 
 {
-    uint idx = gl_GlobalInvocationID.x;
-    uint idy = gl_GlobalInvocationID.y;
+    uvec2 id = gl_GlobalInvocationID.xy;
     uvec2 imgSize = imageSize(rawImage);
 
-    if (idx < imgSize.x && idy < imgSize.y) {
-        vec3 col = imageLoad(rawImage, ivec2(idx, idy)).rgb;
-        vec4 res = vec4(col.z, col.y, col.x, 1.0);
-        imageStore(filteredImage, ivec2(idx, idy), res);
+    if (id.x < imgSize.x && id.y < imgSize.y) {
+        vec3 col = imageLoad(rawImage, ivec2(id)).rgb;
+        imageStore(filteredImage, ivec2(id), vec4(col, 1.0));
     }
 }
