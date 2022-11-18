@@ -69,10 +69,9 @@ private:
     float4x4 model;
   } pushConst2M;
 
-  struct 
-  {
-    float sigma;
-  } pushConstCompute;
+  uint32_t m_kernelSize = 21u;
+  std::vector<float> m_coeffs{};
+  bool m_bBlur = true;
 
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    

@@ -60,6 +60,9 @@ void SimpleShadowmapRender::ProcessInput(const AppInput &input)
   if(input.keyReleased[GLFW_KEY_P])
     m_light.usePerspectiveM = !m_light.usePerspectiveM;
 
+  if(input.keyReleased[GLFW_KEY_N])
+    m_bBlur = !m_bBlur;
+
   // recreate pipeline to reload shaders
   if(input.keyPressed[GLFW_KEY_B])
   {

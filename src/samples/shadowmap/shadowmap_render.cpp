@@ -4,6 +4,7 @@
 #include <vk_pipeline.h>
 #include <vk_buffers.h>
 #include <iostream>
+#include <numeric>
 
 #include <etna/GlobalContext.hpp>
 #include <etna/Etna.hpp>
@@ -41,7 +42,7 @@ void SimpleShadowmapRender::AllocateResources()
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
     .format = vk::Format::eR8G8B8A8Unorm,
-    .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+    .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled | vk::ImageUsageFlagBits::eTransferSrc
   });
 
   filteredImage = m_context->createImage(etna::Image::CreateInfo
@@ -52,6 +53,21 @@ void SimpleShadowmapRender::AllocateResources()
   });
 
   m_uboMappedMem = constants.map();
+
+  m_coeffs.resize(m_kernelSize);
+  const float kernelRadius = (m_kernelSize - 1) / 2.f;
+  const auto sigma = kernelRadius / 3.f;
+  const auto sigma2 = 2 * sigma * sigma;
+  for (size_t i = 0; i < m_kernelSize; ++i)
+  {
+    const auto delta = static_cast<float>(i) - kernelRadius;
+    m_coeffs[i] = std::exp(-delta * delta / sigma2);
+  }
+  const auto sum = std::accumulate(m_coeffs.cbegin(), m_coeffs.cend(), 0.f);
+  for (size_t i = 0; i < m_kernelSize; ++i)
+  {
+    m_coeffs[i] /= sum;
+  }
 }
 
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
@@ -406,6 +422,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   }
 
   // Apply gaussian filter in compute shader
+  if (m_bBlur)
   {
     auto gaussianComputeInfo = etna::get_shader_program("gaussian_compute");
 
@@ -419,11 +436,9 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
       m_computePipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
-    
-    pushConstCompute.sigma = 1.0f;
 
     vkCmdPushConstants(a_cmdBuff, m_computePipeline.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
-      0, sizeof(pushConstCompute), &pushConstCompute);
+                      0, m_coeffs.size() * sizeof(float), m_coeffs.data());
 
     vkCmdDispatch(a_cmdBuff, m_width / 32 + 1, m_height / 32 + 1, 1);
   }
@@ -443,7 +458,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
           .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
           .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
           .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-          .image = filteredImage.get(),
+          .image = m_bBlur ? filteredImage.get() : rawImage.get(),
           .subresourceRange =
             {
               .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -508,16 +523,31 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     blit.dstOffsets[1].x = (int32_t)m_width;
     blit.dstOffsets[1].y = (int32_t)m_height;
     blit.dstOffsets[1].z = 1;
-
-    vkCmdBlitImage(
-      a_cmdBuff,
-      filteredImage.get(),
-      VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-      a_targetImage,
-      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-      1,
-      &blit,
-      VK_FILTER_NEAREST);
+    
+    if (m_bBlur)
+    {
+      vkCmdBlitImage(
+        a_cmdBuff,
+        filteredImage.get(),
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        a_targetImage,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1,
+        &blit,
+        VK_FILTER_NEAREST);
+    }
+    else
+    {
+      vkCmdBlitImage(
+        a_cmdBuff,
+        rawImage.get(),
+        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        a_targetImage,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1,
+        &blit,
+        VK_FILTER_NEAREST);
+    }
   }
 
   if(m_input.drawFSQuad)
