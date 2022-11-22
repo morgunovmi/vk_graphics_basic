@@ -344,23 +344,6 @@ void SimpleShadowmapRender::AllocateBuffers()
   VK_CHECK_RESULT(vkBindBufferMemory(m_device, m_visibleCount, m_visibleCountAlloc, 0));
 
   vkMapMemory(m_device, m_visibleCountAlloc, 0, sizeof(uint32_t), 0, &m_visibleCountMappedMem);
-
-  // BUffer for indirect drawing
-
-  m_indirectBuffer = vk_utils::createBuffer(m_device, sizeof(VkDrawIndexedIndirectCommand), VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT, &memReq);
-
-  allocateInfo = {};
-  allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-  allocateInfo.pNext = nullptr;
-  allocateInfo.allocationSize = memReq.size;
-  allocateInfo.memoryTypeIndex = vk_utils::findMemoryType(memReq.memoryTypeBits,
-                                                          VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-                                                          VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                                          m_physicalDevice);
-  VK_CHECK_RESULT(vkAllocateMemory(m_device, &allocateInfo, nullptr, &m_indirectBufferAlloc));
-  VK_CHECK_RESULT(vkBindBufferMemory(m_device, m_indirectBuffer, m_indirectBufferAlloc, 0));
-
-  vkMapMemory(m_device, m_indirectBufferAlloc, 0, sizeof(uint32_t), 0, &m_indirectBufferMappedMem);
 }
 
 void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
@@ -411,16 +394,9 @@ void SimpleShadowmapRender::DrawInstancedCmd(VkCommandBuffer a_cmdBuff, const fl
   pushConst2M.model = m_pScnMgr->GetInstanceMatrix(1);
   vkCmdPushConstants(a_cmdBuff, m_instancePipeline.layout, stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
   
-  auto *indirectMem          = static_cast<VkDrawIndexedIndirectCommand *>(m_indirectBufferMappedMem);
-  const auto instInfo        = m_pScnMgr->GetInstanceInfo(1);
-  const auto meshInfo        = m_pScnMgr->GetMeshInfo(instInfo.mesh_id);
-  indirectMem->firstIndex    = meshInfo.m_indexOffset;
-  indirectMem->firstInstance = 0;
-  indirectMem->indexCount    = meshInfo.m_indNum;
-  indirectMem->instanceCount = *static_cast<uint32_t *>(m_visibleCountMappedMem);
-  indirectMem->vertexOffset  = meshInfo.m_vertexOffset;
-
-  vkCmdDrawIndexedIndirect(a_cmdBuff, m_indirectBuffer, 0, 1, sizeof(VkDrawIndexedIndirectCommand));
+  const auto inst_info        = m_pScnMgr->GetInstanceInfo(1);
+  const auto mesh_info        = m_pScnMgr->GetMeshInfo(inst_info.mesh_id);
+  vkCmdDrawIndexed(a_cmdBuff, mesh_info.m_indNum, *static_cast<uint32_t *>(m_visibleCountMappedMem), mesh_info.m_indexOffset, mesh_info.m_vertexOffset, 0);
 }
 
 void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkFramebuffer a_frameBuff,
@@ -453,6 +429,33 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   vkCmdSetViewport(a_cmdBuff, 0, 1, viewports.data());
   vkCmdSetScissor(a_cmdBuff, 0, 1, scissors.data());
 
+  {
+    std::array barriers
+     {
+      VkBufferMemoryBarrier {
+        .sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = 0,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .buffer        = m_visibleCount,
+        .size          = VK_WHOLE_SIZE 
+        },
+      VkBufferMemoryBarrier {
+        .sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = 0,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .buffer        = m_visibleIndices,
+        .size          = VK_WHOLE_SIZE 
+        }
+    };
+    
+    vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                    VK_DEPENDENCY_BY_REGION_BIT,
+                                    0, nullptr,
+                                    static_cast<uint32_t>(barriers.size()), barriers.data(),
+                                    0, nullptr);
+  }
+
   /// Do frustum culling in compute
 
   {
@@ -472,6 +475,13 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
         .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
         .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
         .buffer        = m_visibleCount,
+        .size          = VK_WHOLE_SIZE 
+        },
+      VkBufferMemoryBarrier {
+        .sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .buffer        = m_visibleIndices,
         .size          = VK_WHOLE_SIZE 
         }
     };
@@ -525,6 +535,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_instancePipeline.layout, 0, 1, &m_dSetInstance, 0, VK_NULL_HANDLE);
     
     DrawInstancedCmd(a_cmdBuff, m_worldViewProj);
+
 
     vkCmdEndRenderPass(a_cmdBuff);
   }
@@ -655,7 +666,6 @@ void SimpleShadowmapRender::Cleanup()
   vkDestroyBuffer(m_device, m_instanceMatrices, nullptr);
   vkDestroyBuffer(m_device, m_visibleIndices, nullptr);
   vkDestroyBuffer(m_device, m_visibleCount, nullptr);
-  vkDestroyBuffer(m_device, m_indirectBuffer, nullptr);
 }
 
 void SimpleShadowmapRender::ProcessInput(const AppInput &input)

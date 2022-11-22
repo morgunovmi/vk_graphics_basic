@@ -116,10 +116,6 @@ private:
   VkDeviceMemory m_visibleCountAlloc = VK_NULL_HANDLE;
   void* m_visibleCountMappedMem = nullptr;
 
-  VkBuffer m_indirectBuffer = VK_NULL_HANDLE;
-  VkDeviceMemory m_indirectBufferAlloc = VK_NULL_HANDLE;
-  void* m_indirectBufferMappedMem = nullptr;
-
   pipeline_data_t m_computePipeline {};
   pipeline_data_t m_basicForwardPipeline {};
   pipeline_data_t m_instancePipeline {};
