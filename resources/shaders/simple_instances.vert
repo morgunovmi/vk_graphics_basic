@@ -18,6 +18,11 @@ layout(binding = 2, set = 0) readonly buffer InstanceMats
     mat4 instanceMatrices[];
 };
 
+layout(binding = 3, set = 0) readonly buffer VisibleInd
+{
+    uint visibleIndices[];
+};
+
 layout(push_constant) uniform params_t
 {
     mat4 mProjView;
@@ -37,7 +42,7 @@ layout (location = 0 ) out VS_OUT
 out gl_PerVertex { vec4 gl_Position; };
 void main(void)
 {
-    mat4 mModel = instanceMatrices[gl_InstanceIndex] * params.mModel;
+    mat4 mModel = instanceMatrices[visibleIndices[gl_InstanceIndex]];
     const vec4 wNorm = vec4(DecodeNormal(floatBitsToInt(vPosNorm.w)),         0.0f);
     const vec4 wTang = vec4(DecodeNormal(floatBitsToInt(vTexCoordAndTang.z)), 0.0f);
 

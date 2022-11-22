@@ -158,7 +158,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   std::vector<std::pair<VkDescriptorType, uint32_t> > dtypes = {
       {VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,             2},
       {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,     3},
-      {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             5}
+      {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,             6}
   };
 
   m_pBindings = std::make_shared<vk_utils::DescriptorMaker>(m_device, dtypes, 4);
@@ -180,6 +180,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   m_pBindings->BindBuffer(0, m_ubo, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
   m_pBindings->BindImage (1, shadowMap.view, m_pShadowMap2->m_sampler, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
   m_pBindings->BindBuffer(2, m_instanceMatrices, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+  m_pBindings->BindBuffer(3, m_visibleIndices, VK_NULL_HANDLE, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
   m_pBindings->BindEnd(&m_dSetInstance, &m_dSetLayoutInstance);
 
   //m_pBindings->BindImage(0, m_GBufTarget->m_attachments[m_GBuf_idx[GBUF_ATTACHMENT::POS_Z]].view, m_GBufTarget->m_sampler, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
@@ -408,10 +409,18 @@ void SimpleShadowmapRender::DrawInstancedCmd(VkCommandBuffer a_cmdBuff, const fl
 
   pushConst2M.projView = a_wvp;
   pushConst2M.model = m_pScnMgr->GetInstanceMatrix(1);
-  auto inst = m_pScnMgr->GetInstanceInfo(1);
   vkCmdPushConstants(a_cmdBuff, m_instancePipeline.layout, stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
-  auto mesh_info = m_pScnMgr->GetMeshInfo(inst.mesh_id);
-  vkCmdDrawIndexed(a_cmdBuff, mesh_info.m_indNum, computePushConst.instanceCount, mesh_info.m_indexOffset, mesh_info.m_vertexOffset, 0);
+  
+  auto *indirectMem          = static_cast<VkDrawIndexedIndirectCommand *>(m_indirectBufferMappedMem);
+  const auto instInfo        = m_pScnMgr->GetInstanceInfo(1);
+  const auto meshInfo        = m_pScnMgr->GetMeshInfo(instInfo.mesh_id);
+  indirectMem->firstIndex    = meshInfo.m_indexOffset;
+  indirectMem->firstInstance = 0;
+  indirectMem->indexCount    = meshInfo.m_indNum;
+  indirectMem->instanceCount = *static_cast<uint32_t *>(m_visibleCountMappedMem);
+  indirectMem->vertexOffset  = meshInfo.m_vertexOffset;
+
+  vkCmdDrawIndexedIndirect(a_cmdBuff, m_indirectBuffer, 0, 1, sizeof(VkDrawIndexedIndirectCommand));
 }
 
 void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkFramebuffer a_frameBuff,
@@ -443,6 +452,37 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   std::vector<VkRect2D> scissors = {scissor};
   vkCmdSetViewport(a_cmdBuff, 0, 1, viewports.data());
   vkCmdSetScissor(a_cmdBuff, 0, 1, scissors.data());
+
+  /// Do frustum culling in compute
+
+  {
+    vkCmdBindPipeline      (a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.pipeline);
+    vkCmdFillBuffer(a_cmdBuff, m_visibleCount, 0, VK_WHOLE_SIZE, 0);
+    
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.layout, 0, 1, &m_computeDS, 0, NULL);
+    vkCmdPushConstants(a_cmdBuff, m_computePipeline.layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(computePushConst), &computePushConst);
+    vkCmdDispatch(a_cmdBuff, computePushConst.instanceCount / 32 + 1, 1, 1);
+  }
+
+  {
+    std::array barriers
+     {
+      VkBufferMemoryBarrier {
+        .sType         = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .buffer        = m_visibleCount,
+        .size          = VK_WHOLE_SIZE 
+        }
+    };
+    
+    vkCmdPipelineBarrier(a_cmdBuff, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                                    VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+                                    VK_DEPENDENCY_BY_REGION_BIT,
+                                    0, nullptr,
+                                    static_cast<uint32_t>(barriers.size()), barriers.data(),
+                                    0, nullptr);
+  }
 
   //// draw scene to shadowmap
   //
@@ -667,6 +707,7 @@ void SimpleShadowmapRender::UpdateView()
   auto mWorldViewProj = mProjFix * mProj * mLookAt;
   
   m_worldViewProj = mWorldViewProj;
+  computePushConst.projView = m_worldViewProj;
   
   ///// calc light matrix
   //
