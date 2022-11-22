@@ -29,6 +29,12 @@ int main()
   constexpr int HEIGHT = 1024;
   constexpr int VULKAN_DEVICE_ID = 0;
 
+  #ifdef WIN32
+    std::system("cd ../resources/shaders && python compile_shadowmap_shaders.py");
+#else
+    std::system("cd ../resources/shaders && python3 compile_shadowmap_shaders.py");
+#endif
+
   std::shared_ptr<IRender> app = std::make_unique<SimpleShadowmapRender>(WIDTH, HEIGHT);
   if(app == nullptr)
   {

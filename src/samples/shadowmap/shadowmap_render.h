@@ -89,6 +89,13 @@ private:
     float4x4 model;
   } pushConst2M;
 
+  struct
+  {
+    float4x4 projView;
+    Box4f bbox;
+    uint32_t instanceCount = 10000;
+  } computePushConst;
+
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
@@ -97,11 +104,31 @@ private:
   VkDeviceMemory m_uboAlloc = VK_NULL_HANDLE;
   void* m_uboMappedMem = nullptr;
 
+  VkBuffer m_instanceMatrices = VK_NULL_HANDLE;
+  VkDeviceMemory m_instanceMatricesAlloc = VK_NULL_HANDLE;
+  void* m_instancemMatricesMappedMem = nullptr;
+
+  VkBuffer m_visibleIndices = VK_NULL_HANDLE;
+  VkDeviceMemory m_visibleIndicesAlloc = VK_NULL_HANDLE;
+  void* m_visibleIndicesMappedMem = nullptr;
+
+  VkBuffer m_visibleCount = VK_NULL_HANDLE;
+  VkDeviceMemory m_visibleCountAlloc = VK_NULL_HANDLE;
+  void* m_visibleCountMappedMem = nullptr;
+
+  VkBuffer m_indirectBuffer = VK_NULL_HANDLE;
+  VkDeviceMemory m_indirectBufferAlloc = VK_NULL_HANDLE;
+  void* m_indirectBufferMappedMem = nullptr;
+
+  pipeline_data_t m_computePipeline {};
   pipeline_data_t m_basicForwardPipeline {};
+  pipeline_data_t m_instancePipeline {};
   pipeline_data_t m_shadowPipeline {};
 
   VkDescriptorSet m_dSet = VK_NULL_HANDLE;
   VkDescriptorSetLayout m_dSetLayout = VK_NULL_HANDLE;
+  VkDescriptorSet m_dSetInstance = VK_NULL_HANDLE;
+  VkDescriptorSetLayout m_dSetLayoutInstance = VK_NULL_HANDLE;
   VkRenderPass m_screenRenderPass = VK_NULL_HANDLE; // main renderpass
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
@@ -136,6 +163,9 @@ private:
   VkDeviceMemory        m_memShadowMap = VK_NULL_HANDLE;
   VkDescriptorSet       m_quadDS; 
   VkDescriptorSetLayout m_quadDSLayout = nullptr;
+
+  VkDescriptorSet m_computeDS;
+  VkDescriptorSetLayout m_computeDSLayout = nullptr;
 
   struct InputControlMouseEtc
   {
@@ -174,12 +204,13 @@ private:
                                 VkImageView a_targetImageView, VkPipeline a_pipeline);
 
   void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
+  void DrawInstancedCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
 
   void SetupSimplePipeline();
   void CleanupPipelineAndSwapchain();
   void RecreateSwapChain();
 
-  void CreateUniformBuffer();
+  void AllocateBuffers();
   void UpdateUniformBuffer(float a_time);
 
   void Cleanup();
