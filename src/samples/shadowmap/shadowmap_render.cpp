@@ -700,7 +700,7 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   UpdateView();
 
   auto* instanceMats = static_cast<float4x4*>(m_instancemMatricesMappedMem);
-  for (std::size_t i = 0; i < computePushConst.instanceCount; ++i)
+  for (int i = 0; i < computePushConst.instanceCount; ++i)
   {
     auto model = m_pScnMgr->GetInstanceMatrix(1);
     model.col(3).x += (i / 100 - 50) * 2;
