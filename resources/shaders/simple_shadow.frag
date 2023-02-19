@@ -33,10 +33,16 @@ void main()
   const vec4 dark_violet = vec4(0.59f, 0.0f, 0.82f, 1.0f);
   const vec4 chartreuse  = vec4(0.5f, 1.0f, 0.0f, 1.0f);
 
-  vec4 lightColor1 = mix(dark_violet, chartreuse, abs(sin(Params.time)));
-  vec4 lightColor2 = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+  const vec4 lightColor1 = mix(dark_violet, chartreuse, abs(sin(Params.time)));
+  const vec4 lightColor2 = vec4(1.0f, 1.0f, 1.0f, 1.0f);
    
-  vec3 lightDir   = normalize(Params.lightPos - surf.wPos);
-  vec4 lightColor = max(dot(surf.wNorm, lightDir), 0.0f) * lightColor1;
-  out_fragColor   = (lightColor*shadow + vec4(0.1f)) * vec4(Params.baseColor, 1.0f);
+  const vec3 lightDir   = normalize(Params.lightPos - surf.wPos);
+  const float cosLightAngle = dot(-lightDir, Params.lightForward);
+  const float cosInnerAngle = cos(radians(Params.lightInnerAngle));
+  const float cosOuterAngle = cos(radians(Params.lightOuterAngle));
+  const float epsilon = cosInnerAngle - cosOuterAngle;
+  const float intensity = clamp((cosLightAngle - cosOuterAngle) / epsilon, 0.0, 1.0);
+
+  const vec4 lightColor = max(dot(surf.wNorm, lightDir), 0.0f) * lightColor1;
+  out_fragColor   = intensity * (lightColor*shadow + vec4(0.1f)) * vec4(Params.baseColor, 1.0f);
 }
