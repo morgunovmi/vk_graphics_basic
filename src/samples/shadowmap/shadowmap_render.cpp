@@ -4,6 +4,7 @@
 #include <vk_pipeline.h>
 #include <vk_buffers.h>
 #include <iostream>
+#include <numeric>
 
 #include <etna/GlobalContext.hpp>
 #include <etna/Etna.hpp>
@@ -31,6 +32,21 @@ void SimpleShadowmapRender::AllocateResources()
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
+  vsmShadowMap = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{2048, 2048, 1},
+    .name = "vsm_shadow_map",
+    .format = vk::Format::eR16G16Unorm,
+    .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+  vsmShadowMapFiltered = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{2048, 2048, 1},
+    .name = "vsm_shadow_map_filtered",
+    .format = vk::Format::eR16G16Unorm,
+    .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
   constants = m_context->createBuffer(etna::Buffer::CreateInfo
   {
@@ -41,6 +57,21 @@ void SimpleShadowmapRender::AllocateResources()
   });
 
   m_uboMappedMem = constants.map();
+
+  m_coeffs.resize(m_kernelSize);
+  const float kernelRadius = (m_kernelSize - 1) / 2.f;
+  const auto sigma = kernelRadius / 3.f;
+  const auto sigma2 = 2 * sigma * sigma;
+  for (size_t i = 0; i < m_kernelSize; ++i)
+  {
+    const auto delta = static_cast<float>(i) - kernelRadius;
+    m_coeffs[i] = std::exp(-delta * delta / sigma2);
+  }
+  const auto sum = std::accumulate(m_coeffs.cbegin(), m_coeffs.cend(), 0.f);
+  for (size_t i = 0; i < m_kernelSize; ++i)
+  {
+    m_coeffs[i] /= sum;
+  }
 }
 
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
@@ -63,6 +94,8 @@ void SimpleShadowmapRender::DeallocateResources()
 {
   mainViewDepth.reset(); // TODO: Make an etna method to reset all the resources
   shadowMap.reset();
+  vsmShadowMap.reset();
+  vsmShadowMapFiltered.reset();
   m_swapchain.Cleanup();
   vkDestroySurfaceKHR(GetVkInstance(), m_surface, nullptr);  
 
@@ -99,6 +132,8 @@ void SimpleShadowmapRender::loadShaders()
   etna::create_program("simple_material",
     {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
   etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
+  etna::create_program("simple_vsm", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/vsm.frag.spv"});
+  etna::create_program("gaussian_compute", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/gaussian.comp.spv"});
 }
 
 void SimpleShadowmapRender::SetupSimplePipeline()
@@ -140,6 +175,16 @@ void SimpleShadowmapRender::SetupSimplePipeline()
           .depthAttachmentFormat = vk::Format::eD16Unorm
         }
     });
+  m_vsmPipeline = pipelineManager.createGraphicsPipeline("simple_vsm",
+    {
+      .vertexShaderInput = sceneVertexInputDesc,
+      .fragmentShaderOutput =
+        {
+          .colorAttachmentFormats = {vk::Format::eR16G16Unorm},
+          .depthAttachmentFormat = vk::Format::eD16Unorm
+        }
+    });
+  m_computePipeline = pipelineManager.createComputePipeline("gaussian_compute", {});
 }
 
 void SimpleShadowmapRender::DestroyPipelines()
@@ -193,6 +238,43 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.getVkPipeline());
     DrawSceneCmd(a_cmdBuff, m_lightMatrix);
   }
+
+  //// draw vsm
+  //
+  {
+    etna::RenderTargetState renderTargets(a_cmdBuff, {2048, 2048}, {vsmShadowMap}, shadowMap);
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vsmPipeline.getVkPipeline());
+    DrawSceneCmd(a_cmdBuff, m_lightMatrix);
+  }
+
+    // Apply gaussian filter in compute shader
+  {
+    auto gaussianComputeInfo = etna::get_shader_program("gaussian_compute");
+
+    auto set = etna::create_descriptor_set(gaussianComputeInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    {
+      etna::Binding {0, vsmShadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
+      etna::Binding {1, vsmShadowMapFiltered.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.getVkPipeline());
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
+      m_computePipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+    compute_push_consts pc {
+      {1, 0},
+      m_coeffs
+    };
+
+    vkCmdPushConstants(a_cmdBuff, m_computePipeline.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
+                      0, m_coeffs.size() * sizeof(float) + sizeof(shader_uvec2), &pc);
+
+    vkCmdDispatch(a_cmdBuff, m_width / 32 + 1, m_width / 32 + 1, 1);
+  }
+
 
   //// draw final scene to screen
   //

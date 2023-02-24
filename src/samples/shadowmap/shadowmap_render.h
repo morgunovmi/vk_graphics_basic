@@ -47,6 +47,8 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
+  etna::Image vsmShadowMap;
+  etna::Image vsmShadowMapFiltered;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
@@ -77,6 +79,16 @@ private:
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_vsmPipeline {};
+  etna::ComputePipeline m_computePipeline {};
+
+  uint32_t m_kernelSize = 21u;
+  std::vector<float> m_coeffs{};
+
+  struct compute_push_consts {
+    shader_uvec2 vertical;
+    std::vector<float> coefs;
+  };
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
