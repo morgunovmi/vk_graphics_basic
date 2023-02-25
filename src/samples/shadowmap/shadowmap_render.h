@@ -82,12 +82,12 @@ private:
   etna::GraphicsPipeline m_vsmPipeline {};
   etna::ComputePipeline m_computePipeline {};
 
-  uint32_t m_kernelSize = 21u;
+  uint32_t m_kernelSize = 41u;
   std::vector<float> m_coeffs{};
 
   struct compute_push_consts {
-    shader_uvec2 vertical;
     std::vector<float> coefs;
+    shader_uvec2 vertical;
   };
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
