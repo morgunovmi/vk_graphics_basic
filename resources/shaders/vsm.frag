@@ -21,5 +21,9 @@ layout(binding = 0, set = 0) uniform AppData
 
 void main()
 {
-    out_fragColor = vec2(gl_FragCoord.z, gl_FragCoord.z * gl_FragCoord.z);
+    const float depth = gl_FragCoord.z;
+    // https://developer.nvidia.com/gpugems/gpugems3/part-ii-light-and-shadows/chapter-8-summed-area-variance-shadow-maps
+    const float dx = dFdx(depth);
+    const float dy = dFdy(depth);
+    out_fragColor = vec2(depth, depth * depth + 0.25 * (dx * dx + dy * dy));
 }

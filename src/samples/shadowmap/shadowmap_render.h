@@ -78,6 +78,7 @@ private:
   void* m_uboMappedMem = nullptr;
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
+  etna::GraphicsPipeline m_vsmForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
   etna::GraphicsPipeline m_vsmPipeline {};
   etna::ComputePipeline m_computePipelineVertical {};
@@ -90,7 +91,7 @@ private:
     SHADOW_BASIC = 0,
     SHADOW_VSM = 1
   };
-  ShadowMethod m_currentShadowMethod = SHADOW_BASIC;
+  ShadowMethod m_currentShadowMethod = SHADOW_VSM;
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
