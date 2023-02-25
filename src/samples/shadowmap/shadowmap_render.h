@@ -80,15 +80,11 @@ private:
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
   etna::GraphicsPipeline m_vsmPipeline {};
-  etna::ComputePipeline m_computePipeline {};
+  etna::ComputePipeline m_computePipelineVertical {};
+  etna::ComputePipeline m_computePipelineHorizontal {};
 
   uint32_t m_kernelSize = 41u;
   std::vector<float> m_coeffs{};
-
-  struct compute_push_consts {
-    std::vector<float> coefs;
-    shader_uvec2 vertical;
-  };
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   

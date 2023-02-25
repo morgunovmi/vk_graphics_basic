@@ -74,8 +74,6 @@ void SimpleShadowmapRender::AllocateResources()
     m_coeffs[i] /= sum;
   }
 
-  m_coeffs.resize(m_coeffs.size() + 1);
-
   for (const auto & coef : m_coeffs)
   {
     spdlog::info("{}\n", coef);
@@ -141,7 +139,8 @@ void SimpleShadowmapRender::loadShaders()
     {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
   etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
   etna::create_program("simple_vsm", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/vsm.frag.spv"});
-  etna::create_program("gaussian_compute", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/gaussian.comp.spv"});
+  etna::create_program("gaussian_compute_vertical", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/gaussian_vertical.comp.spv"});
+  etna::create_program("gaussian_compute_horizontal", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/gaussian_horizontal.comp.spv"});
 }
 
 void SimpleShadowmapRender::SetupSimplePipeline()
@@ -192,7 +191,8 @@ void SimpleShadowmapRender::SetupSimplePipeline()
           .depthAttachmentFormat = vk::Format::eD16Unorm
         }
     });
-  m_computePipeline = pipelineManager.createComputePipeline("gaussian_compute", {});
+  m_computePipelineVertical = pipelineManager.createComputePipeline("gaussian_compute_vertical", {});
+  m_computePipelineHorizontal = pipelineManager.createComputePipeline("gaussian_compute_horizontal", {});
 }
 
 void SimpleShadowmapRender::DestroyPipelines()
@@ -271,7 +271,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     // Apply horizontal gaussian filter in compute shader
   {
-    auto gaussianComputeInfo = etna::get_shader_program("gaussian_compute");
+    auto gaussianComputeInfo = etna::get_shader_program("gaussian_compute_horizontal");
 
     auto set = etna::create_descriptor_set(gaussianComputeInfo.getDescriptorLayoutId(0), a_cmdBuff,
     {
@@ -281,17 +281,14 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.getVkPipeline());
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineHorizontal.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
-      m_computePipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+      m_computePipelineHorizontal.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
-    // last coef is filter direction
-    m_coeffs[m_coeffs.size() - 1] = 1.f;
-
-    vkCmdPushConstants(a_cmdBuff, m_computePipeline.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
+    vkCmdPushConstants(a_cmdBuff, m_computePipelineHorizontal.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
                       0, m_coeffs.size() * sizeof(float), m_coeffs.data());
 
-    vkCmdDispatch(a_cmdBuff, 2048 / 32 + 1, 2048 / 32 + 1, 1);
+    vkCmdDispatch(a_cmdBuff, 2048 / 32 + 1, 2048, 1);
   }
 
   etna::set_state(a_cmdBuff, vsmShadowMap.get(), vk::PipelineStageFlagBits2::eComputeShader,
@@ -305,7 +302,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     // Apply vertical gaussian filter in compute shader
   {
-    auto gaussianComputeInfo = etna::get_shader_program("gaussian_compute");
+    auto gaussianComputeInfo = etna::get_shader_program("gaussian_compute_vertical");
 
     auto set = etna::create_descriptor_set(gaussianComputeInfo.getDescriptorLayoutId(0), a_cmdBuff,
     {
@@ -315,17 +312,14 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipeline.getVkPipeline());
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineVertical.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
-      m_computePipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+      m_computePipelineVertical.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
-    // last coef is filter direction
-    m_coeffs[m_coeffs.size() - 1] = 0.f;
-
-    vkCmdPushConstants(a_cmdBuff, m_computePipeline.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
+    vkCmdPushConstants(a_cmdBuff, m_computePipelineVertical.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
                       0, m_coeffs.size() * sizeof(float), m_coeffs.data());
 
-    vkCmdDispatch(a_cmdBuff, 2048 / 32 + 1, 2048 / 32 + 1, 1);
+    vkCmdDispatch(a_cmdBuff, 2048, 2048 / 32 + 1, 1);
   }
 
   etna::set_state(a_cmdBuff, vsmShadowMap.get(), vk::PipelineStageFlagBits2::eFragmentShader,

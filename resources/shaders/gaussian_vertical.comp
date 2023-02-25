@@ -1,0 +1,57 @@
+#version 430
+
+layout( local_size_x = 1, local_size_y = 32 ) in;
+
+layout( binding = 0, rg16 ) uniform readonly image2D rawImage;
+layout( binding = 1, rg16 ) uniform writeonly image2D filteredImage;
+
+const int kernelSize = 41;
+const int kernelRadius = kernelSize / 2;
+
+layout( push_constant ) uniform params {
+  float gaussCoeffs[kernelSize];
+} PushConst;
+
+const int GROUP_SIZE = 32;
+const int CACHE_SIZE = GROUP_SIZE + 2 * kernelRadius;
+const int LOAD = (CACHE_SIZE + (GROUP_SIZE - 1)) / GROUP_SIZE;
+shared vec2 cache[CACHE_SIZE];
+
+void main()
+{
+    ivec2 size = imageSize(rawImage);
+    ivec2 pixel_coord = ivec2(gl_GlobalInvocationID.xy);
+
+    int origin = int(gl_WorkGroupID.y) * GROUP_SIZE - kernelRadius;
+
+    for (int i = 0; i < LOAD; ++i)
+    {
+        int local = int(gl_LocalInvocationID.y) * LOAD + i;
+        if (local < CACHE_SIZE)
+        {
+            int pc = origin + local;
+            if (pc >= 0 && pc < size.y)
+                cache[local] = imageLoad(rawImage, ivec2(pixel_coord.x, pc)).xy;
+        }
+    }
+
+	barrier();
+
+    if (pixel_coord.x < size.x && pixel_coord.y < size.y)
+    {
+        vec2 sum = vec2(0.0);
+
+        for (int i = 0; i < kernelSize; ++i)
+        {
+            ivec2 pc = pixel_coord + ivec2(0, i - kernelRadius);
+            if (pc.y < 0) pc.y = 0;
+            if (pc.y >= size.y) pc.y = size.y - 1;
+
+            int local = pc.y - origin;
+
+            sum += PushConst.gaussCoeffs[i] * cache[local];
+        }
+
+        imageStore(filteredImage, pixel_coord, vec4(sum, 0.0, 0.0));
+    }
+}
