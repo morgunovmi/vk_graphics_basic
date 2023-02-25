@@ -73,11 +73,6 @@ void SimpleShadowmapRender::AllocateResources()
   {
     m_coeffs[i] /= sum;
   }
-
-  for (const auto & coef : m_coeffs)
-  {
-    spdlog::info("{}\n", coef);
-  }
 }
 
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
@@ -238,115 +233,142 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
   VK_CHECK_RESULT(vkBeginCommandBuffer(a_cmdBuff, &beginInfo));
 
-  //// draw scene to shadowmap
-  //
+  if (m_currentShadowMethod == SHADOW_BASIC)
   {
-    etna::RenderTargetState renderTargets(a_cmdBuff, {2048, 2048}, {}, shadowMap);
-
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.getVkPipeline());
-    DrawSceneCmd(a_cmdBuff, m_lightMatrix);
-  }
-
-  etna::set_state(a_cmdBuff, vsmShadowMap.get(), vk::PipelineStageFlagBits2::eColorAttachmentOutput,
-    vk::AccessFlagBits2::eColorAttachmentWrite, vk::ImageLayout::eColorAttachmentOptimal,
-    vk::ImageAspectFlagBits::eColor);
-
-  //// draw vsm
-  //
-  {
-    etna::RenderTargetState renderTargets(a_cmdBuff, {2048, 2048}, {vsmShadowMap}, shadowMap);
-
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vsmPipeline.getVkPipeline());
-    DrawSceneCmd(a_cmdBuff, m_lightMatrix);
-  }
-
-  etna::set_state(a_cmdBuff, vsmShadowMap.get(), vk::PipelineStageFlagBits2::eComputeShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eGeneral,
-    vk::ImageAspectFlagBits::eColor);
-  etna::set_state(a_cmdBuff, vsmShadowMapFiltered.get(), vk::PipelineStageFlagBits2::eComputeShader,
-    vk::AccessFlagBits2::eShaderWrite, vk::ImageLayout::eGeneral,
-    vk::ImageAspectFlagBits::eColor);
-
-  etna::get_context().getResourceTracker().flushBarriers(a_cmdBuff);
-
-    // Apply horizontal gaussian filter in compute shader
-  {
-    auto gaussianComputeInfo = etna::get_shader_program("gaussian_compute_horizontal");
-
-    auto set = etna::create_descriptor_set(gaussianComputeInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    //// draw scene to shadowmap
+    //
     {
-      etna::Binding {0, vsmShadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding {1, vsmShadowMapFiltered.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
-    });
+      etna::RenderTargetState renderTargets(a_cmdBuff, {2048, 2048}, {}, shadowMap);
 
-    VkDescriptorSet vkSet = set.getVkSet();
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.getVkPipeline());
+      DrawSceneCmd(a_cmdBuff, m_lightMatrix);
+    }
 
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineHorizontal.getVkPipeline());
-    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
-      m_computePipelineHorizontal.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+    //// draw final scene to screen
+    //
+    {
+      auto simpleMaterialInfo = etna::get_shader_program("simple_material");
 
-    vkCmdPushConstants(a_cmdBuff, m_computePipelineHorizontal.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
-                      0, m_coeffs.size() * sizeof(float), m_coeffs.data());
+      auto set = etna::create_descriptor_set(simpleMaterialInfo.getDescriptorLayoutId(0), a_cmdBuff,
+      {
+        etna::Binding {0, constants.genBinding()},
+        etna::Binding {1, shadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
+      });
 
-    vkCmdDispatch(a_cmdBuff, 2048 / 32 + 1, 2048, 1);
+      VkDescriptorSet vkSet = set.getVkSet();
+
+      etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImage, a_targetImageView}}, mainViewDepth);
+
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_basicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+      DrawSceneCmd(a_cmdBuff, m_worldViewProj);
+    }
   }
 
-  etna::set_state(a_cmdBuff, vsmShadowMap.get(), vk::PipelineStageFlagBits2::eComputeShader,
-    vk::AccessFlagBits2::eShaderWrite, vk::ImageLayout::eGeneral,
-    vk::ImageAspectFlagBits::eColor);
-  etna::set_state(a_cmdBuff, vsmShadowMapFiltered.get(), vk::PipelineStageFlagBits2::eComputeShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eGeneral,
-    vk::ImageAspectFlagBits::eColor);
-
-  etna::get_context().getResourceTracker().flushBarriers(a_cmdBuff);
-
-    // Apply vertical gaussian filter in compute shader
+  if (m_currentShadowMethod == SHADOW_VSM)
   {
-    auto gaussianComputeInfo = etna::get_shader_program("gaussian_compute_vertical");
+    etna::set_state(a_cmdBuff, vsmShadowMap.get(), vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+      vk::AccessFlagBits2::eColorAttachmentWrite, vk::ImageLayout::eColorAttachmentOptimal,
+      vk::ImageAspectFlagBits::eColor);
 
-    auto set = etna::create_descriptor_set(gaussianComputeInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    //// draw vsm shadowmap
+    //
     {
-      etna::Binding {0, vsmShadowMapFiltered.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
-      etna::Binding {1, vsmShadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
-    });
+      etna::RenderTargetState renderTargets(a_cmdBuff, {2048, 2048}, {vsmShadowMap}, shadowMap);
 
-    VkDescriptorSet vkSet = set.getVkSet();
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_vsmPipeline.getVkPipeline());
+      DrawSceneCmd(a_cmdBuff, m_lightMatrix);
+    }
 
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineVertical.getVkPipeline());
-    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
-      m_computePipelineVertical.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+    etna::set_state(a_cmdBuff, vsmShadowMap.get(), vk::PipelineStageFlagBits2::eComputeShader,
+      vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eGeneral,
+      vk::ImageAspectFlagBits::eColor);
+    etna::set_state(a_cmdBuff, vsmShadowMapFiltered.get(), vk::PipelineStageFlagBits2::eComputeShader,
+      vk::AccessFlagBits2::eShaderWrite, vk::ImageLayout::eGeneral,
+      vk::ImageAspectFlagBits::eColor);
 
-    vkCmdPushConstants(a_cmdBuff, m_computePipelineVertical.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
-                      0, m_coeffs.size() * sizeof(float), m_coeffs.data());
+    etna::get_context().getResourceTracker().flushBarriers(a_cmdBuff);
 
-    vkCmdDispatch(a_cmdBuff, 2048, 2048 / 32 + 1, 1);
-  }
-
-  etna::set_state(a_cmdBuff, vsmShadowMap.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eColor);
-
-
-  //// draw final scene to screen
-  //
-  {
-    auto simpleMaterialInfo = etna::get_shader_program("simple_material");
-
-    auto set = etna::create_descriptor_set(simpleMaterialInfo.getDescriptorLayoutId(0), a_cmdBuff,
+      // Apply horizontal gaussian filter in compute shader
     {
-      etna::Binding {0, constants.genBinding()},
-      etna::Binding {1, vsmShadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
-    });
+      auto gaussianComputeInfo = etna::get_shader_program("gaussian_compute_horizontal");
 
-    VkDescriptorSet vkSet = set.getVkSet();
+      auto set = etna::create_descriptor_set(gaussianComputeInfo.getDescriptorLayoutId(0), a_cmdBuff,
+      {
+        etna::Binding {0, vsmShadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
+        etna::Binding {1, vsmShadowMapFiltered.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
+      });
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImage, a_targetImageView}}, mainViewDepth);
+      VkDescriptorSet vkSet = set.getVkSet();
 
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
-    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
-      m_basicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineHorizontal.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
+        m_computePipelineHorizontal.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
-    DrawSceneCmd(a_cmdBuff, m_worldViewProj);
+      vkCmdPushConstants(a_cmdBuff, m_computePipelineHorizontal.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
+                        0, m_coeffs.size() * sizeof(float), m_coeffs.data());
+
+      vkCmdDispatch(a_cmdBuff, 2048 / 32 + 1, 2048, 1);
+    }
+
+    etna::set_state(a_cmdBuff, vsmShadowMap.get(), vk::PipelineStageFlagBits2::eComputeShader,
+      vk::AccessFlagBits2::eShaderWrite, vk::ImageLayout::eGeneral,
+      vk::ImageAspectFlagBits::eColor);
+    etna::set_state(a_cmdBuff, vsmShadowMapFiltered.get(), vk::PipelineStageFlagBits2::eComputeShader,
+      vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eGeneral,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::get_context().getResourceTracker().flushBarriers(a_cmdBuff);
+
+      // Apply vertical gaussian filter in compute shader
+    {
+      auto gaussianComputeInfo = etna::get_shader_program("gaussian_compute_vertical");
+
+      auto set = etna::create_descriptor_set(gaussianComputeInfo.getDescriptorLayoutId(0), a_cmdBuff,
+      {
+        etna::Binding {0, vsmShadowMapFiltered.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
+        etna::Binding {1, vsmShadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
+      });
+
+      VkDescriptorSet vkSet = set.getVkSet();
+
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineVertical.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
+        m_computePipelineVertical.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+      vkCmdPushConstants(a_cmdBuff, m_computePipelineVertical.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
+                        0, m_coeffs.size() * sizeof(float), m_coeffs.data());
+
+      vkCmdDispatch(a_cmdBuff, 2048, 2048 / 32 + 1, 1);
+    }
+
+    etna::set_state(a_cmdBuff, vsmShadowMap.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+      vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageAspectFlagBits::eColor);
+
+    //// draw final scene to screen
+    //
+    {
+      auto simpleMaterialInfo = etna::get_shader_program("simple_material");
+
+      auto set = etna::create_descriptor_set(simpleMaterialInfo.getDescriptorLayoutId(0), a_cmdBuff,
+      {
+        etna::Binding {0, constants.genBinding()},
+        etna::Binding {1, vsmShadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
+      });
+
+      VkDescriptorSet vkSet = set.getVkSet();
+
+      etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImage, a_targetImageView}}, mainViewDepth);
+
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_basicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+      DrawSceneCmd(a_cmdBuff, m_worldViewProj);
+    }
   }
 
   if(m_input.drawFSQuad)

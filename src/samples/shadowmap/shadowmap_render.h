@@ -86,6 +86,12 @@ private:
   uint32_t m_kernelSize = 41u;
   std::vector<float> m_coeffs{};
 
+  enum ShadowMethod : int {
+    SHADOW_BASIC = 0,
+    SHADOW_VSM = 1
+  };
+  ShadowMethod m_currentShadowMethod = SHADOW_BASIC;
+
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
   VkSurfaceKHR m_surface = VK_NULL_HANDLE;
