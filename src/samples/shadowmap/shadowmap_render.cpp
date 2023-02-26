@@ -300,7 +300,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       vk::AccessFlagBits2::eShaderWrite, vk::ImageLayout::eGeneral,
       vk::ImageAspectFlagBits::eColor);
 
-    etna::get_context().getResourceTracker().flushBarriers(a_cmdBuff);
+    etna::flush_barriers(a_cmdBuff);
 
       // Apply horizontal gaussian filter in compute shader
     {
@@ -331,7 +331,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eGeneral,
       vk::ImageAspectFlagBits::eColor);
 
-    etna::get_context().getResourceTracker().flushBarriers(a_cmdBuff);
+    etna::flush_barriers(a_cmdBuff);
 
       // Apply vertical gaussian filter in compute shader
     {
