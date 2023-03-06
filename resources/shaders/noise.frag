@@ -108,7 +108,13 @@ float pnoise(vec2 P, vec2 rep)
   return 2.3 * n_xy;
 }
 
+layout(push_constant) uniform params_t
+{
+    float min_height;
+    float max_height;
+} params;
+
 void main()
 {
-    color = pnoise(surf.texCoord, vec2(3, 2));
+    color = (params.max_height - params.min_height) * (1 + pnoise(surf.texCoord, vec2(3, 2))) / 2 + params.min_height;
 }

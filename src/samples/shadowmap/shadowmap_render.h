@@ -51,6 +51,12 @@ private:
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
+  struct 
+  {
+    float minHeight = -1.f;
+    float maxHeight = 1.f;
+  } m_noiseConsts;
+
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
   struct

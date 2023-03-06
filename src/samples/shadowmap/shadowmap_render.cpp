@@ -214,12 +214,15 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     etna::RenderTargetState renderTargets(a_cmdBuff, {2048, 2048}, {heightMap}, {});
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_noisePipeline.getVkPipeline());
+    vkCmdPushConstants(a_cmdBuff, m_noisePipeline.getVkPipelineLayout(),
+      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(m_noiseConsts), &m_noiseConsts);
     vkCmdDraw(a_cmdBuff, 4, 1, 0, 0);
   }
 
   // etna::set_state(a_cmdBuff, heightMap.get(), vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
   //   vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
   //   vk::ImageAspectFlagBits::eColor);
+
   //// draw scene to shadowmap
   //
   {
