@@ -31,6 +31,14 @@ void SimpleShadowmapRender::AllocateResources()
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
+  heightMap = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{2048, 2048, 1},
+    .name = "shadow_map",
+    .format = vk::Format::eR32Sfloat,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
   constants = m_context->createBuffer(etna::Buffer::CreateInfo
   {
@@ -63,6 +71,7 @@ void SimpleShadowmapRender::DeallocateResources()
 {
   mainViewDepth.reset(); // TODO: Make an etna method to reset all the resources
   shadowMap.reset();
+  heightMap.reset();
   m_swapchain.Cleanup();
   vkDestroySurfaceKHR(GetVkInstance(), m_surface, nullptr);  
 
@@ -96,8 +105,10 @@ void SimpleShadowmapRender::PreparePipelines()
 
 void SimpleShadowmapRender::loadShaders()
 {
-  etna::create_program("simple_material",
-    {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
+  etna::create_program("simple_noise", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/noise.frag.spv",
+                                        VK_GRAPHICS_BASIC_ROOT"/resources/shaders/noise_quad.vert.spv"});
+  etna::create_program("simple_material", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv",
+                                           VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
   etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
 }
 
@@ -123,6 +134,18 @@ void SimpleShadowmapRender::SetupSimplePipeline()
     };
 
   auto& pipelineManager = etna::get_context().getPipelineManager();
+  m_noisePipeline = pipelineManager.createGraphicsPipeline("simple_noise",
+    {
+      .depthConfig = 
+        {
+          .depthTestEnable = false,
+          .depthWriteEnable = false,
+        },
+      .fragmentShaderOutput = 
+        {
+          .colorAttachmentFormats = {vk::Format::eR32Sfloat}
+        }
+    });
   m_basicForwardPipeline = pipelineManager.createGraphicsPipeline("simple_material",
     {
       .vertexShaderInput = sceneVertexInputDesc,
@@ -185,6 +208,18 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
   VK_CHECK_RESULT(vkBeginCommandBuffer(a_cmdBuff, &beginInfo));
 
+  //// draw noise to texture
+  //
+  {
+    etna::RenderTargetState renderTargets(a_cmdBuff, {2048, 2048}, {heightMap}, {});
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_noisePipeline.getVkPipeline());
+    vkCmdDraw(a_cmdBuff, 4, 1, 0, 0);
+  }
+
+  // etna::set_state(a_cmdBuff, heightMap.get(), vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
+  //   vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+  //   vk::ImageAspectFlagBits::eColor);
   //// draw scene to shadowmap
   //
   {
