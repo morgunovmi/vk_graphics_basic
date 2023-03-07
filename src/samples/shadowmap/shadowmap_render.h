@@ -77,6 +77,7 @@ private:
     float4x4 model;
   } pushConst2M;
 
+  float3   m_terrainRotation = {0, 0, 0};
   float4x4 m_terrainMatrix;
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    

@@ -25,7 +25,7 @@ void main(void)
     vec3 pos = vec3(vOut.texCoord * 2.0f - 1.0f, 0.0f);
     vOut.wPos  = (params.mModel * vec4(pos, 1.0f)).xyz;
 
-    vec3 normal = vec3(0, 0, -1);
+    vec3 normal = vec3(0, 0, 1);
     vOut.wNorm = normalize(mat3(transpose(inverse(params.mModel))) * normal.xyz);
     gl_Position   = params.mProjView * vec4(vOut.wPos, 1.0);
 }
