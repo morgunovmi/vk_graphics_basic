@@ -4,6 +4,7 @@
 #include <vk_pipeline.h>
 #include <vk_buffers.h>
 #include <iostream>
+#include <LiteMath.h>
 
 #include <etna/GlobalContext.hpp>
 #include <etna/Etna.hpp>
@@ -47,6 +48,13 @@ void SimpleShadowmapRender::AllocateResources()
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "constants"
   });
+  quadIndexBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(uint16_t) * 6,
+    .bufferUsage = vk::BufferUsageFlagBits::eIndexBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+    .name = "quad_index_buffer"
+  });
 
   m_uboMappedMem = constants.map();
 }
@@ -65,6 +73,13 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   m_cam.up  = float3(loadedCam.up);
   m_cam.lookAt = float3(loadedCam.lookAt);
   m_cam.tdist  = loadedCam.farPlane;
+
+  auto mapped_mem = quadIndexBuffer.map();
+  std::array<uint16_t, 6> indices{0, 1, 2, 2, 3, 0};
+  memcpy(mapped_mem, indices.data(), sizeof(uint16_t) * indices.size());
+  quadIndexBuffer.unmap();
+
+  m_terrainMatrix = translate4x4(float3{0, -1, -2}) * rotate4x4X(M_PI / 2);
 }
 
 void SimpleShadowmapRender::DeallocateResources()
@@ -76,11 +91,8 @@ void SimpleShadowmapRender::DeallocateResources()
   vkDestroySurfaceKHR(GetVkInstance(), m_surface, nullptr);  
 
   constants = etna::Buffer();
+  quadIndexBuffer = etna::Buffer();
 }
-
-
-
-
 
 /// PIPELINES CREATION
 
@@ -107,9 +119,9 @@ void SimpleShadowmapRender::loadShaders()
 {
   etna::create_program("simple_noise", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/noise.frag.spv",
                                         VK_GRAPHICS_BASIC_ROOT"/resources/shaders/noise_quad.vert.spv"});
-  etna::create_program("simple_material", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv",
-                                           VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
-  etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
+  etna::create_program("simple_terrain", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/terrain.frag.spv",
+                                        VK_GRAPHICS_BASIC_ROOT"/resources/shaders/terrain.vert.spv"});
+  etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/terrain.vert.spv"});
 }
 
 void SimpleShadowmapRender::SetupSimplePipeline()
@@ -146,9 +158,8 @@ void SimpleShadowmapRender::SetupSimplePipeline()
           .colorAttachmentFormats = {vk::Format::eR32Sfloat}
         }
     });
-  m_basicForwardPipeline = pipelineManager.createGraphicsPipeline("simple_material",
+  m_terrainPipeline = pipelineManager.createGraphicsPipeline("simple_terrain",
     {
-      .vertexShaderInput = sceneVertexInputDesc,
       .fragmentShaderOutput =
         {
           .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
@@ -157,7 +168,6 @@ void SimpleShadowmapRender::SetupSimplePipeline()
     });
   m_shadowPipeline = pipelineManager.createGraphicsPipeline("simple_shadow",
     {
-      .vertexShaderInput = sceneVertexInputDesc,
       .fragmentShaderOutput =
         {
           .depthAttachmentFormat = vk::Format::eD16Unorm
@@ -178,24 +188,14 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
 {
   VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT);
 
-  VkDeviceSize zero_offset = 0u;
-  VkBuffer vertexBuf = m_pScnMgr->GetVertexBuffer();
-  VkBuffer indexBuf  = m_pScnMgr->GetIndexBuffer();
-  
-  vkCmdBindVertexBuffers(a_cmdBuff, 0, 1, &vertexBuf, &zero_offset);
-  vkCmdBindIndexBuffer(a_cmdBuff, indexBuf, 0, VK_INDEX_TYPE_UINT32);
+  vkCmdBindIndexBuffer(a_cmdBuff, quadIndexBuffer.get(), 0, VK_INDEX_TYPE_UINT16);
 
   pushConst2M.projView = a_wvp;
-  for (uint32_t i = 0; i < m_pScnMgr->InstancesNum(); ++i)
-  {
-    auto inst         = m_pScnMgr->GetInstanceInfo(i);
-    pushConst2M.model = m_pScnMgr->GetInstanceMatrix(i);
-    vkCmdPushConstants(a_cmdBuff, m_basicForwardPipeline.getVkPipelineLayout(),
-      stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
+  pushConst2M.model = m_terrainMatrix;
+  vkCmdPushConstants(a_cmdBuff, m_terrainPipeline.getVkPipelineLayout(),
+    stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
 
-    auto mesh_info = m_pScnMgr->GetMeshInfo(inst.mesh_id);
-    vkCmdDrawIndexed(a_cmdBuff, mesh_info.m_indNum, 1, mesh_info.m_indexOffset, mesh_info.m_vertexOffset, 0);
-  }
+  vkCmdDrawIndexed(a_cmdBuff, 6, 1, 0, 0, 0);
 }
 
 void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView)
@@ -216,7 +216,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_noisePipeline.getVkPipeline());
     vkCmdPushConstants(a_cmdBuff, m_noisePipeline.getVkPipelineLayout(),
       VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(m_noiseConsts), &m_noiseConsts);
-    vkCmdDraw(a_cmdBuff, 4, 1, 0, 0);
+    vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
   }
 
   // etna::set_state(a_cmdBuff, heightMap.get(), vk::PipelineStageFlagBits2::eTessellationEvaluationShader,
@@ -235,7 +235,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //// draw final scene to screen
   //
   {
-    auto simpleMaterialInfo = etna::get_shader_program("simple_material");
+    auto simpleMaterialInfo = etna::get_shader_program("simple_terrain");
 
     auto set = etna::create_descriptor_set(simpleMaterialInfo.getDescriptorLayoutId(0), a_cmdBuff,
     {
@@ -247,9 +247,9 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImage, a_targetImageView}}, mainViewDepth);
 
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_basicForwardPipeline.getVkPipeline());
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_terrainPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
-      m_basicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+      m_terrainPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
   }
