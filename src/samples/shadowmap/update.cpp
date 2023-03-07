@@ -47,7 +47,7 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
 
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
 
-  m_terrainMatrix = translate4x4(float3{0, -1, -2}) 
+  m_terrainMatrix = translate4x4(float3{0, -1, -1}) 
                   * rotate4x4X(DEG_TO_RAD * m_terrainRotation.x)
                   * rotate4x4Y(DEG_TO_RAD * m_terrainRotation.y)
                   * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z)
