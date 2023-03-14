@@ -39,12 +39,13 @@ void main()
     teseOut.wNorm = normalize(mat3(transpose(inverse(params.mModel))) * normal.xyz);
 
 	// Interpolate positions
-	vec4 pos1 = mix(p00, p01, gl_TessCoord.x);
-	vec4 pos2 = mix(p11, p10, gl_TessCoord.x);
+	vec4 pos1 = mix(gl_in[0].gl_Position, gl_in[1].gl_Position, gl_TessCoord.x);
+	vec4 pos2 = mix(gl_in[3].gl_Position, gl_in[2].gl_Position, gl_TessCoord.x);
 	vec4 pos = mix(pos1, pos2, gl_TessCoord.y);
 
-    pos += normal * height;
+    // pos += normal * height;
 
     teseOut.wPos = (params.mModel * pos).xyz;
-    gl_Position = params.mProjView * vec4(teseOut.wPos, 1.0f);
+    teseOut.wPos = pos.xyz;
+    gl_Position =  vec4(teseOut.wPos, 1.0f);
 }

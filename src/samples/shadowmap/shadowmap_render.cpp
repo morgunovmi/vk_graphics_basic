@@ -172,6 +172,11 @@ void SimpleShadowmapRender::SetupSimplePipeline()
         {
           .topology = vk::PrimitiveTopology::ePatchList,
         },
+      .rasterizationConfig =
+        {
+          .polygonMode = vk::PolygonMode::eFill,
+          .lineWidth = 1.0f,
+        },
       .tesselationConfig =
         {
           .patchControlPoints = 4,
