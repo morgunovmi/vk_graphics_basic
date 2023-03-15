@@ -23,29 +23,27 @@ void main()
 {
     // Interpolate UV coordinates
 	vec2 uv1 = mix(texCoord[0], texCoord[1], gl_TessCoord.x);
-	vec2 uv2 = mix(texCoord[3], texCoord[2], gl_TessCoord.x);
+	vec2 uv2 = mix(texCoord[2], texCoord[3], gl_TessCoord.x);
 	teseOut.texCoord = mix(uv1, uv2, gl_TessCoord.y);
 
     float height = textureLod(heightMap, teseOut.texCoord, 0.0).r;
-
-    vec4 p00 = gl_in[0].gl_Position;
-    vec4 p01 = gl_in[1].gl_Position;
-    vec4 p10 = gl_in[2].gl_Position;
-    vec4 p11 = gl_in[3].gl_Position;
-
-    vec4 uVec = p01 - p00;
-    vec4 vVec = p10 - p00;
-    vec4 normal = normalize(vec4(cross(vVec.xyz, uVec.xyz), 0));
-    teseOut.wNorm = normalize(mat3(transpose(inverse(params.mModel))) * normal.xyz);
+    float height_x_offset = textureLod(heightMap, vec2(teseOut.texCoord.x + 0.005, teseOut.texCoord.y), 0.0).r;
+    float height_y_offset = textureLod(heightMap, vec2(teseOut.texCoord.x, teseOut.texCoord.y + 0.005), 0.0).r;
 
 	// Interpolate positions
 	vec4 pos1 = mix(gl_in[0].gl_Position, gl_in[1].gl_Position, gl_TessCoord.x);
-	vec4 pos2 = mix(gl_in[3].gl_Position, gl_in[2].gl_Position, gl_TessCoord.x);
-	vec4 pos = mix(pos1, pos2, gl_TessCoord.y);
+	vec4 pos2 = mix(gl_in[2].gl_Position, gl_in[3].gl_Position, gl_TessCoord.x);
+	vec3 pos = mix(pos1, pos2, gl_TessCoord.y).xyz;
+    pos.z = height;
+    teseOut.wPos = (params.mModel * vec4(pos, 1.0)).xyz;
 
-    // pos += normal * height;
+    vec3 pos_x_offset = vec3(pos.x + 0.01, pos.y, height_x_offset);
+    vec3 pos_y_offset = vec3(pos.x, pos.y + 0.01, height_y_offset);
+    vec3 uVec = pos_x_offset - pos;
+    vec3 vVec = pos_y_offset - pos;
+    vec3 normal = normalize(cross(uVec, vVec));
 
-    teseOut.wPos = (params.mModel * pos).xyz;
-    teseOut.wPos = pos.xyz;
-    gl_Position =  vec4(teseOut.wPos, 1.0f);
+    teseOut.wNorm = normalize(mat3(transpose(inverse(params.mModel))) * normal);
+
+    gl_Position = params.mProjView * vec4(teseOut.wPos, 1.0f);
 }

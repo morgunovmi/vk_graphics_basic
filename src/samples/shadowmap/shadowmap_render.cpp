@@ -50,7 +50,7 @@ void SimpleShadowmapRender::AllocateResources()
   });
   quadIndexBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
   {
-    .size = sizeof(uint16_t) * 6,
+    .size = sizeof(uint16_t) * 4,
     .bufferUsage = vk::BufferUsageFlagBits::eIndexBuffer,
     .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
     .name = "quad_index_buffer"
@@ -75,7 +75,7 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   m_cam.tdist  = loadedCam.farPlane;
 
   auto mapped_mem = quadIndexBuffer.map();
-  std::array<uint16_t, 6> indices{0, 1, 2, 2, 3, 0};
+  std::array<uint16_t, 6> indices{0, 3, 1, 2};
   memcpy(mapped_mem, indices.data(), sizeof(uint16_t) * indices.size());
   quadIndexBuffer.unmap();
 
@@ -95,7 +95,6 @@ void SimpleShadowmapRender::DeallocateResources()
   vkDestroySurfaceKHR(GetVkInstance(), m_surface, nullptr);  
 
   constants = etna::Buffer();
-  quadIndexBuffer = etna::Buffer();
 }
 
 /// PIPELINES CREATION
@@ -224,7 +223,7 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   vkCmdPushConstants(a_cmdBuff, m_terrainPipeline.getVkPipelineLayout(),
     stageFlags, 0, sizeof(pushConst2M), &pushConst2M);
 
-  vkCmdDrawIndexed(a_cmdBuff, 6, 1, 0, 0, 0);
+  vkCmdDrawIndexed(a_cmdBuff, 4, 1, 0, 0, 0);
 }
 
 void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView)
