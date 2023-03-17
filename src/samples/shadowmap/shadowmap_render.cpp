@@ -171,14 +171,14 @@ void SimpleShadowmapRender::SetupSimplePipeline()
         {
           .topology = vk::PrimitiveTopology::ePatchList,
         },
+      .tessellationConfig =
+        {
+          .patchControlPoints = 4,
+        },
       .rasterizationConfig =
         {
           .polygonMode = vk::PolygonMode::eFill,
           .lineWidth = 1.0f,
-        },
-      .tesselationConfig =
-        {
-          .patchControlPoints = 4,
         },
       .fragmentShaderOutput =
         {
@@ -192,7 +192,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
         {
           .topology = vk::PrimitiveTopology::ePatchList,
         },
-      .tesselationConfig =
+      .tessellationConfig =
         {
           .patchControlPoints = 4,
         },
