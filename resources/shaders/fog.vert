@@ -4,7 +4,6 @@ layout(push_constant) uniform params_t
 {
     mat4 mProjView;
     mat4 mModel;
-    vec3 wCameraPos;
 } params;
 
 layout (location = 0 ) out VS_OUT

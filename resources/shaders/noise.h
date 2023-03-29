@@ -1,51 +1,7 @@
-#version 450
-#extension GL_ARB_separate_shader_objects : enable
-#extension GL_GOOGLE_include_directive : require
-
-#include "common.h"
-
-layout(location = 0) out vec4 color;
-
-layout (location = 0 ) in VS_OUT
-{
-    vec3 wPos;
-    vec3 oPos;
-} surf;
-
-layout(push_constant) uniform params_t
-{
-    mat4 mProjView;
-    mat4 mModel;
-} params;
-
-layout(binding = 0, set = 0) uniform AppData
-{
-  UniformParams Params;
-};
-
-vec2 boxIntersection(vec3 ro, vec3 rd, vec3 boxSize)
-{
-    vec3 m = 1.0 / rd;
-    vec3 n = m * ro;
-    vec3 k = abs(m) * boxSize;
-    vec3 t1 = -n - k;
-    vec3 t2 = -n + k;
-    float tN = max(max(t1.x, t1.y), t1.z);
-    float tF = min(min(t2.x, t2.y), t2.z);
-    if(tN > tF || tF < 0.0)
-    {
-        return vec2(-1.0, -1.0);
-    }
-    return vec2(tN, tF);
-}
-
 //	Simplex 3D Noise 
 //	by Ian McEwan, Ashima Arts
 //
-vec4 permute(vec4 x)
-{
-    return mod(((x * 34.0)+1.0) * x, 289.0);
-}
+vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
 vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
 
 float snoise(vec3 v){ 
@@ -115,38 +71,4 @@ float snoise(vec3 v){
   m = m * m;
   return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1), 
                                 dot(p2,x2), dot(p3,x3) ) );
-}
-
-void main()
-{
-    vec3 worldPosToEye = normalize(Params.wCameraPos - surf.wPos);
-    vec3 rd = normalize((inverse(params.mModel) * vec4(worldPosToEye, 0.0)).xyz);
-    vec3 ro = surf.oPos - 1.0 * rd;
-
-    vec3 boxSize = vec3(1.0, 1.0, 1.0);
-    vec2 hits = boxIntersection(ro, rd, boxSize);
-
-    vec3 exit = ro + hits.x * rd;
-    vec3 entry = ro + hits.y * rd;
-
-    if (hits.x < 0)
-        discard;
-
-    // vec3 segmentCenter = entry + (exit - entry) / 2.0;
-
-    // if (length(segmentCenter) > 1.0)
-    //     discard;
-    
-    const int stepCount = 50;
-    float stepSize = length(exit - entry) / stepCount;
-
-    float transmittance = 1.0;
-    vec3 samplePos = entry;
-    for (int i = 0; i < stepCount; ++i)
-    {
-        samplePos -= rd * stepSize;
-        transmittance *= exp(-snoise(vec3(samplePos.x + Params.time, samplePos.y, samplePos.z)) * Params.extinctionCoef * stepSize);
-    }
-
-    color = vec4(transmittance, transmittance, transmittance, 1 - transmittance);
 }

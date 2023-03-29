@@ -111,7 +111,7 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
                     * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z)
                     * rotate4x4X(-M_PI / 2);
 
-  m_fogMatrix = translate4x4(float3{0, -1, -3}) 
+  m_fogMatrix = translate4x4(float3{0, 0, -2}) 
                     * rotate4x4X(DEG_TO_RAD * m_terrainRotation.x)
                     * rotate4x4Y(DEG_TO_RAD * m_terrainRotation.y)
                     * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z);
@@ -242,8 +242,15 @@ void SimpleShadowmapRender::SetupSimplePipeline()
         {
           .cullMode = vk::CullModeFlagBits::eFront,
           .frontFace = vk::FrontFace::eClockwise,
-          .lineWidth = 1.0
+          .lineWidth = 1.0,
         },
+      // .blendingConfig = 
+      //   {
+      //     .attachments = 
+      //       {
+      //         {vk::PipelineColorBlendAttachmentState{true}}
+      //       }
+      //   },
       .depthConfig =
         {
           .depthTestEnable = false,
@@ -287,7 +294,6 @@ void SimpleShadowmapRender::DrawCubeCmd(VkCommandBuffer a_cmdBuff, const float4x
 
   pushConstFog.projView = a_wvp;
   pushConstFog.model = m_fogMatrix;
-  pushConstFog.wCameraPos = m_cam.pos;
   vkCmdPushConstants(a_cmdBuff, m_fogPipeline.getVkPipelineLayout(),
     stageFlags, 0, sizeof(pushConstFog), &pushConstFog);
 
@@ -308,9 +314,20 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //// draw box to ether
   //
   {
+    auto simpleFogInfo = etna::get_shader_program("simple_fog");
+
+    auto set = etna::create_descriptor_set(simpleFogInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    {
+      etna::Binding {0, constants.genBinding()}
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
+
     etna::RenderTargetState renderTargets(a_cmdBuff, {m_width / 4, m_height / 4}, {lowResFx}, {});
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_fogPipeline.getVkPipeline());
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+      m_fogPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
     DrawCubeCmd(a_cmdBuff, m_worldViewProj);
   }
 

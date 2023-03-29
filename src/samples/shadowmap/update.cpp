@@ -44,16 +44,18 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
   m_uniforms.lightMatrix = m_lightMatrix;
   m_uniforms.lightPos    = m_light.cam.pos; //LiteMath::float3(sinf(a_time), 1.0f, cosf(a_time));
   m_uniforms.time        = a_time;
+  m_uniforms.wCameraPos  = m_cam.pos;
+  m_uniforms.extinctionCoef = m_extinctionCoef;
 
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
 
-  m_terrainMatrix = translate4x4(float3{0, -1, -1}) 
+  m_terrainMatrix = translate4x4(float3{0, -1, -2}) 
                   * rotate4x4X(DEG_TO_RAD * m_terrainRotation.x)
                   * rotate4x4Y(DEG_TO_RAD * m_terrainRotation.y)
                   * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z)
                   * rotate4x4X(-M_PI / 2);
 
-  m_fogMatrix = translate4x4(float3{0, -1, -3}) 
+  m_fogMatrix = translate4x4(float3{0, 0, -2}) 
                     * rotate4x4X(DEG_TO_RAD * m_terrainRotation.x)
                     * rotate4x4Y(DEG_TO_RAD * m_terrainRotation.y)
                     * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z);

@@ -83,7 +83,6 @@ private:
   {
     float4x4 projView;
     float4x4 model;
-    float3 wCameraPos;
   } pushConstFog;
 
   float3   m_terrainRotation = {0, 0, 0};
@@ -92,6 +91,7 @@ private:
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
+  float m_extinctionCoef = 1.0;
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
 
