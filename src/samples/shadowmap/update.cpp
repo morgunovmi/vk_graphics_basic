@@ -52,6 +52,12 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
                   * rotate4x4Y(DEG_TO_RAD * m_terrainRotation.y)
                   * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z)
                   * rotate4x4X(-M_PI / 2);
+
+  m_fogMatrix = translate4x4(float3{0, -1, -3}) 
+                    * rotate4x4X(DEG_TO_RAD * m_terrainRotation.x)
+                    * rotate4x4Y(DEG_TO_RAD * m_terrainRotation.y)
+                    * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z);
+
 }
 
 void SimpleShadowmapRender::ProcessInput(const AppInput &input)

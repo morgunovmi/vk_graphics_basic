@@ -24,6 +24,14 @@ void SimpleShadowmapRender::AllocateResources()
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment
   });
 
+  lowResFx = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{m_width / 4, m_height / 4, 1},
+    .name = "low_res_fx",
+    .format = vk::Format::eR8G8B8A8Unorm,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+
   shadowMap = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{2048, 2048, 1},
@@ -55,9 +63,19 @@ void SimpleShadowmapRender::AllocateResources()
     .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
     .name = "quad_index_buffer"
   });
+  boxIndexBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(uint16_t) * 36,
+    .bufferUsage = vk::BufferUsageFlagBits::eIndexBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_TO_GPU,
+    .name = "box_index_buffer"
+  });
 
   m_uboMappedMem = constants.map();
 }
+
+static constexpr std::array<uint16_t, 36> boxIndices = {
+  0, 3, 1, 0, 2, 3, 0, 1, 5, 0, 5, 4, 0, 4, 6, 0, 6, 2, 1, 7, 5, 1, 3, 7, 4, 5, 7, 4, 7, 6, 2, 7, 3, 2, 6, 7};
 
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
 {
@@ -74,16 +92,29 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   m_cam.lookAt = float3(loadedCam.lookAt);
   m_cam.tdist  = loadedCam.farPlane;
 
-  auto mapped_mem = quadIndexBuffer.map();
-  std::array<uint16_t, 6> indices{0, 3, 1, 2};
-  memcpy(mapped_mem, indices.data(), sizeof(uint16_t) * indices.size());
-  quadIndexBuffer.unmap();
+  {
+    auto mapped_mem = quadIndexBuffer.map();
+    std::array<uint16_t, 6> indices{ 0, 3, 1, 2 };
+    memcpy(mapped_mem, indices.data(), sizeof(uint16_t) * indices.size());
+    quadIndexBuffer.unmap();
+  }
+
+  {
+    auto mapped_mem = boxIndexBuffer.map();
+    memcpy(mapped_mem, boxIndices.data(), sizeof(uint16_t) * boxIndices.size());
+    boxIndexBuffer.unmap();
+  }
 
   m_terrainMatrix = translate4x4(float3{0, -1, -2}) 
                     * rotate4x4X(DEG_TO_RAD * m_terrainRotation.x)
                     * rotate4x4Y(DEG_TO_RAD * m_terrainRotation.y)
                     * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z)
                     * rotate4x4X(-M_PI / 2);
+
+  m_fogMatrix = translate4x4(float3{0, -1, -3}) 
+                    * rotate4x4X(DEG_TO_RAD * m_terrainRotation.x)
+                    * rotate4x4Y(DEG_TO_RAD * m_terrainRotation.y)
+                    * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z);
 }
 
 void SimpleShadowmapRender::DeallocateResources()
@@ -91,6 +122,7 @@ void SimpleShadowmapRender::DeallocateResources()
   mainViewDepth.reset(); // TODO: Make an etna method to reset all the resources
   shadowMap.reset();
   heightMap.reset();
+  lowResFx.reset();
   m_swapchain.Cleanup();
   vkDestroySurfaceKHR(GetVkInstance(), m_surface, nullptr);  
 
@@ -108,7 +140,7 @@ void SimpleShadowmapRender::PreparePipelines()
     VK_GRAPHICS_BASIC_ROOT "/resources/shaders/quad3_vert.vert.spv",
     VK_GRAPHICS_BASIC_ROOT "/resources/shaders/quad.frag.spv",
     vk_utils::RenderTargetInfo2D{
-      .size          = VkExtent2D{ m_width, m_height },// this is debug full screen quad
+      .size          = VkExtent2D{ m_width , m_height  },// this is debug full screen quad
       .format        = m_swapchain.GetFormat(),
       .loadOp        = VK_ATTACHMENT_LOAD_OP_LOAD,// seems we need LOAD_OP_LOAD if we want to draw quad to part of screen
       .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -129,6 +161,8 @@ void SimpleShadowmapRender::loadShaders()
   etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/terrain.vert.spv",
                                         VK_GRAPHICS_BASIC_ROOT"/resources/shaders/terrain.tesc.spv",
                                         VK_GRAPHICS_BASIC_ROOT"/resources/shaders/terrain.tese.spv"});
+  etna::create_program("simple_fog", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/fog.frag.spv",
+                                        VK_GRAPHICS_BASIC_ROOT"/resources/shaders/fog.vert.spv"});
 }
 
 void SimpleShadowmapRender::SetupSimplePipeline()
@@ -141,7 +175,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
   m_pBindings = std::make_shared<vk_utils::DescriptorMaker>(m_context->getDevice(), dtypes, 2);
   
   m_pBindings->BindBegin(VK_SHADER_STAGE_FRAGMENT_BIT);
-  m_pBindings->BindImage(0, shadowMap.getView({}), defaultSampler.get(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+  m_pBindings->BindImage(0, lowResFx.getView({}), defaultSampler.get(), VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
   m_pBindings->BindEnd(&m_quadDS, &m_quadDSLayout);
 
   etna::VertexShaderInputDescription sceneVertexInputDesc
@@ -201,6 +235,25 @@ void SimpleShadowmapRender::SetupSimplePipeline()
           .depthAttachmentFormat = vk::Format::eD16Unorm
         }
     });
+
+  m_fogPipeline = pipelineManager.createGraphicsPipeline("simple_fog",
+    {
+      .rasterizationConfig =
+        {
+          .cullMode = vk::CullModeFlagBits::eFront,
+          .frontFace = vk::FrontFace::eClockwise,
+          .lineWidth = 1.0
+        },
+      .depthConfig =
+        {
+          .depthTestEnable = false,
+          .depthWriteEnable = false
+        },
+      .fragmentShaderOutput =
+        {
+          .colorAttachmentFormats = {vk::Format::eR8G8B8A8Unorm}
+        }
+    });
 }
 
 void SimpleShadowmapRender::DestroyPipelines()
@@ -226,6 +279,22 @@ void SimpleShadowmapRender::DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4
   vkCmdDrawIndexed(a_cmdBuff, 4, 1, 0, 0, 0);
 }
 
+void SimpleShadowmapRender::DrawCubeCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp)
+{
+  VkShaderStageFlags stageFlags = (VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT);
+
+  vkCmdBindIndexBuffer(a_cmdBuff, boxIndexBuffer.get(), 0, VK_INDEX_TYPE_UINT16);
+
+  pushConstFog.projView = a_wvp;
+  pushConstFog.model = m_fogMatrix;
+  pushConstFog.wCameraPos = m_cam.pos;
+  vkCmdPushConstants(a_cmdBuff, m_fogPipeline.getVkPipelineLayout(),
+    stageFlags, 0, sizeof(pushConstFog), &pushConstFog);
+
+  vkCmdDrawIndexed(a_cmdBuff, boxIndices.size(), 1, 0, 0, 0);
+}
+
+
 void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView)
 {
   vkResetCommandBuffer(a_cmdBuff, 0);
@@ -235,6 +304,15 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
   VK_CHECK_RESULT(vkBeginCommandBuffer(a_cmdBuff, &beginInfo));
+
+  //// draw box to ether
+  //
+  {
+    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width / 4, m_height / 4}, {lowResFx}, {});
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_fogPipeline.getVkPipeline());
+    DrawCubeCmd(a_cmdBuff, m_worldViewProj);
+  }
 
   //// draw noise to texture
   //
@@ -293,6 +371,12 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
   }
+
+  etna::set_state(a_cmdBuff, lowResFx.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eColor);
+  
+  etna::flush_barriers(a_cmdBuff);
 
   if(m_input.drawFSQuad)
   {

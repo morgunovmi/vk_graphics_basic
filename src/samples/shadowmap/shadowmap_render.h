@@ -46,11 +46,13 @@ public:
 private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
+  etna::Image lowResFx;
   etna::Image shadowMap;
   etna::Image heightMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
   etna::Buffer quadIndexBuffer;
+  etna::Buffer boxIndexBuffer;
 
   struct 
   {
@@ -77,8 +79,16 @@ private:
     float4x4 model;
   } pushConst2M;
 
+  struct
+  {
+    float4x4 projView;
+    float4x4 model;
+    float3 wCameraPos;
+  } pushConstFog;
+
   float3   m_terrainRotation = {0, 0, 0};
   float4x4 m_terrainMatrix;
+  float4x4 m_fogMatrix;
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
@@ -88,6 +98,7 @@ private:
   etna::GraphicsPipeline m_noisePipeline {};
   etna::GraphicsPipeline m_terrainPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_fogPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -147,6 +158,7 @@ private:
   void BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, VkImage a_targetImage, VkImageView a_targetImageView);
 
   void DrawSceneCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
+  void DrawCubeCmd(VkCommandBuffer a_cmdBuff, const float4x4& a_wvp);
 
   void loadShaders();
 
