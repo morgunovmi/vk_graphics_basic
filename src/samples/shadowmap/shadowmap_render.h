@@ -91,7 +91,7 @@ private:
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
 
-  float m_extinctionCoef = 1.0;
+  float m_extinctionCoef = 2.0;
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
 

@@ -137,7 +137,7 @@ void main()
     // if (length(segmentCenter) > 1.0)
     //     discard;
     
-    const int stepCount = 50;
+    const int stepCount = 100;
     float stepSize = length(exit - entry) / stepCount;
 
     float transmittance = 1.0;
@@ -145,8 +145,20 @@ void main()
     for (int i = 0; i < stepCount; ++i)
     {
         samplePos -= rd * stepSize;
-        transmittance *= exp(-snoise(vec3(samplePos.x + Params.time, samplePos.y, samplePos.z)) * Params.extinctionCoef * stepSize);
+        float density = snoise(vec3(samplePos.x + 0.25 * Params.time, samplePos.y, samplePos.z));
+
+        if (density > 0)
+        {
+            transmittance *= exp(-density * stepSize * Params.extinctionCoef);
+
+            if (transmittance < 0.01)
+            {
+                break;
+            }
+        }
     }
 
-    color = vec4(transmittance, transmittance, transmittance, 1 - transmittance);
+    float c = mix(1, 0, transmittance);
+
+    color = vec4(c, c, c, 1);
 }
