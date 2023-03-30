@@ -104,6 +104,7 @@ private:
   etna::GraphicsPipeline m_terrainPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
   etna::GraphicsPipeline m_fogPipeline {};
+  etna::GraphicsPipeline m_fogDisplayPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -116,7 +117,7 @@ private:
   uint32_t m_framesInFlight = 2u;
   bool m_vsync = false;
 
-  vk::PhysicalDeviceFeatures m_enabledDeviceFeatures = {.tessellationShader = VK_TRUE, .fillModeNonSolid = VK_TRUE };
+  vk::PhysicalDeviceFeatures m_enabledDeviceFeatures = {.tessellationShader = VK_TRUE, .logicOp = VK_TRUE, .fillModeNonSolid = VK_TRUE };
   std::vector<const char*> m_deviceExtensions;
   std::vector<const char*> m_instanceExtensions;
 

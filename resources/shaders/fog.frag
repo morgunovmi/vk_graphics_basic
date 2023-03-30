@@ -172,5 +172,5 @@ void main()
 
     float c = mix(1, 0, transmittance);
 
-    color = vec4(c, c, c, 1);
+    color = vec4(c, c, c, 1 - transmittance);
 }
