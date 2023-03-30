@@ -56,6 +56,13 @@ void SimpleShadowmapRender::AllocateResources()
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "constants"
   });
+  noiseParams = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(NoiseParams),
+    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+    .name = "noise_params"
+  });
   quadIndexBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
   {
     .size = sizeof(uint16_t) * 4,
@@ -72,6 +79,7 @@ void SimpleShadowmapRender::AllocateResources()
   });
 
   m_uboMappedMem = constants.map();
+  m_noiseMappedMem = noiseParams.map();
 }
 
 static constexpr std::array<uint16_t, 36> boxIndices = {
@@ -127,6 +135,7 @@ void SimpleShadowmapRender::DeallocateResources()
   vkDestroySurfaceKHR(GetVkInstance(), m_surface, nullptr);  
 
   constants = etna::Buffer();
+  noiseParams = etna::Buffer();
 }
 
 /// PIPELINES CREATION
@@ -318,7 +327,8 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     auto set = etna::create_descriptor_set(simpleFogInfo.getDescriptorLayoutId(0), a_cmdBuff,
     {
-      etna::Binding {0, constants.genBinding()}
+      etna::Binding {0, constants.genBinding()},
+      etna::Binding {1, noiseParams.genBinding()}
     });
 
     VkDescriptorSet vkSet = set.getVkSet();

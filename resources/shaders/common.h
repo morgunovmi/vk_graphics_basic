@@ -44,13 +44,19 @@ using shader_bool  = LiteMath::uint;
 
 struct UniformParams
 {
-  shader_mat4  lightMatrix;
-  shader_vec3  lightPos;
-  shader_float time;
-  shader_vec3  baseColor;
-  shader_bool  animateLightColor;
-  shader_vec3  wCameraPos;
-  shader_float extinctionCoef;
+  shader_mat4  lightMatrix;       // 64
+  shader_vec3  lightPos;          // 12
+  shader_float time;              // 4
+  shader_vec3  baseColor;         // 12
+  shader_bool  animateLightColor; // 4
+  shader_vec3  wCameraPos;        // 12
+};
+
+struct NoiseParams
+{
+  shader_vec3  noiseScale;        // 12
+  shader_float extinctionCoef;    // 4
+  shader_vec3  noiseOffset;       // 12
 };
 
 #endif // VK_GRAPHICS_BASIC_COMMON_H

@@ -45,9 +45,13 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
   m_uniforms.lightPos    = m_light.cam.pos; //LiteMath::float3(sinf(a_time), 1.0f, cosf(a_time));
   m_uniforms.time        = a_time;
   m_uniforms.wCameraPos  = m_cam.pos;
-  m_uniforms.extinctionCoef = m_extinctionCoef;
+
+  m_noiseParams.extinctionCoef = m_extinctionCoef;
+  m_noiseParams.noiseScale = m_noiseScale;
+  m_noiseParams.noiseOffset = m_noiseOffset;
 
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
+  memcpy(m_noiseMappedMem, &m_noiseParams, sizeof(m_noiseParams));
 
   m_terrainMatrix = translate4x4(float3{0, -1, -2}) 
                   * rotate4x4X(DEG_TO_RAD * m_terrainRotation.x)

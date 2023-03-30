@@ -51,6 +51,7 @@ private:
   etna::Image heightMap;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
+  etna::Buffer noiseParams;
   etna::Buffer quadIndexBuffer;
   etna::Buffer boxIndexBuffer;
 
@@ -92,8 +93,12 @@ private:
   float4x4 m_lightMatrix;    
 
   float m_extinctionCoef = 2.0;
+  float3 m_noiseOffset = {0, 0, 0};
+  float3 m_noiseScale = {1.0f, 1.0f, 1.0f};
   UniformParams m_uniforms {};
+  NoiseParams m_noiseParams {};
   void* m_uboMappedMem = nullptr;
+  void* m_noiseMappedMem = nullptr;
 
   etna::GraphicsPipeline m_noisePipeline {};
   etna::GraphicsPipeline m_terrainPipeline {};

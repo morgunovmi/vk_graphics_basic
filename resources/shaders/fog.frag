@@ -23,6 +23,11 @@ layout(binding = 0, set = 0) uniform AppData
   UniformParams Params;
 };
 
+layout(binding = 1, set = 0) uniform NoiseData
+{
+  NoiseParams Noise;
+};
+
 vec2 boxIntersection(vec3 ro, vec3 rd, vec3 boxSize)
 {
     vec3 m = 1.0 / rd;
@@ -117,6 +122,13 @@ float snoise(vec3 v){
                                 dot(p2,x2), dot(p3,x3) ) );
 }
 
+float sampleDensity(vec3 samplePos)
+{
+  return snoise(vec3(Noise.noiseScale.x * samplePos.x + 0.25 * Params.time + Noise.noiseOffset.x,
+                     Noise.noiseScale.y * samplePos.y + Noise.noiseOffset.y,
+                     Noise.noiseScale.z * samplePos.z + Noise.noiseOffset.z));
+}
+
 void main()
 {
     vec3 worldPosToEye = normalize(Params.wCameraPos - surf.wPos);
@@ -145,15 +157,15 @@ void main()
     for (int i = 0; i < stepCount; ++i)
     {
         samplePos -= rd * stepSize;
-        float density = snoise(vec3(samplePos.x + 0.25 * Params.time, samplePos.y, samplePos.z));
+        float density = sampleDensity(samplePos);
 
         if (density > 0)
         {
-            transmittance *= exp(-density * stepSize * Params.extinctionCoef);
+            transmittance *= exp(-density * stepSize * Noise.extinctionCoef);
 
             if (transmittance < 0.01)
             {
-                break;
+              break;
             }
         }
     }
