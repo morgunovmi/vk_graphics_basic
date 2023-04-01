@@ -49,6 +49,7 @@ void SimpleShadowmapRender::AllocateResources()
   });
 
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
+  linearSampler = etna::Sampler(etna::Sampler::CreateInfo{.filter = vk::Filter::eLinear, .name = "linear_sampler"});
   constants = m_context->createBuffer(etna::Buffer::CreateInfo
   {
     .size = sizeof(UniformParams),
@@ -432,7 +433,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     auto set = etna::create_descriptor_set(fogDisplayInfo.getDescriptorLayoutId(0), a_cmdBuff,
     {
-      etna::Binding {0, lowResFx.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {0, lowResFx.genBinding(linearSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
     });
 
     VkDescriptorSet vkSet = set.getVkSet();

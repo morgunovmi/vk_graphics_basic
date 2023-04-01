@@ -50,6 +50,7 @@ private:
   etna::Image shadowMap;
   etna::Image heightMap;
   etna::Sampler defaultSampler;
+  etna::Sampler linearSampler;
   etna::Buffer constants;
   etna::Buffer noiseParams;
   etna::Buffer quadIndexBuffer;
