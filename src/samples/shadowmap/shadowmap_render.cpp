@@ -119,10 +119,10 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
                     * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z)
                     * rotate4x4X(-M_PI / 2);
 
-  m_fogMatrix = translate4x4(float3{0, 0, -2}) 
-                    * rotate4x4X(DEG_TO_RAD * m_terrainRotation.x)
-                    * rotate4x4Y(DEG_TO_RAD * m_terrainRotation.y)
-                    * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z);
+  m_fogMatrix = translate4x4(m_boxOffset) 
+                * rotate4x4X(DEG_TO_RAD * m_terrainRotation.x)
+                * rotate4x4Y(DEG_TO_RAD * m_terrainRotation.y)
+                * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z);
 }
 
 void SimpleShadowmapRender::DeallocateResources()
@@ -408,8 +408,11 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width / 4, m_height / 4}, {lowResFx}, {});
-
+    etna::RenderTargetState::AttachmentParams colorAttachmentParams{lowResFx};
+    colorAttachmentParams.loadOp = vk::AttachmentLoadOp::eClear;
+    colorAttachmentParams.clearColorValue = {0.f, 0.f, 0.f, 0.f};
+    colorAttachmentParams.storeOp = vk::AttachmentStoreOp::eStore;
+    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width / 4, m_height / 4}, {colorAttachmentParams}, {});
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_fogPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
       m_fogPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);

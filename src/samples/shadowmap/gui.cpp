@@ -16,6 +16,8 @@ void SimpleShadowmapRender::SetupGUIElements()
     ImGui::SliderFloat("Min terrain height", &m_noiseConsts.minHeight, -10.f, m_noiseConsts.maxHeight);
     ImGui::SliderFloat("Max terrain height", &m_noiseConsts.maxHeight, m_noiseConsts.minHeight, 10.f);
     ImGui::SliderFloat3("Terrain rotation", m_terrainRotation.M, -90.f, 90.f);
+    ImGui::SliderFloat3("Fog box size", m_boxSize.M, 1.f, 30.f);
+    ImGui::SliderFloat3("Fog box offset", m_boxOffset.M, -10.f, 10.f);
     ImGui::SliderFloat("Exctinction coef", &m_extinctionCoef, 0.0f, 10.f);
     ImGui::SliderFloat3("Noise scale", m_noiseScale.M, 0.0f, 10.f);
     ImGui::SliderFloat3("Noise offset", m_noiseOffset.M, -20.f, 20.f);

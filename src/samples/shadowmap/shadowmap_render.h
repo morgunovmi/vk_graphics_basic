@@ -94,7 +94,9 @@ private:
 
   float m_extinctionCoef = 2.0;
   float3 m_noiseOffset = {0, 0, 0};
-  float3 m_noiseScale = {1.0f, 1.0f, 1.0f};
+  float3 m_noiseScale = {0.6f, 0.6f, 0.6f};
+  float3 m_boxSize = {2.5f, 2.5f, 2.5f};
+  float3 m_boxOffset = {0.f, 0.f, -2.f};
   UniformParams m_uniforms {};
   NoiseParams m_noiseParams {};
   void* m_uboMappedMem = nullptr;

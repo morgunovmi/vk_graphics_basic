@@ -49,6 +49,7 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
   m_noiseParams.extinctionCoef = m_extinctionCoef;
   m_noiseParams.noiseScale = m_noiseScale;
   m_noiseParams.noiseOffset = m_noiseOffset;
+  m_noiseParams.boxSize = m_boxSize;
 
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
   memcpy(m_noiseMappedMem, &m_noiseParams, sizeof(m_noiseParams));
@@ -59,10 +60,10 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
                   * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z)
                   * rotate4x4X(-M_PI / 2);
 
-  m_fogMatrix = translate4x4(float3{0, 0, -2}) 
-                    * rotate4x4X(DEG_TO_RAD * m_terrainRotation.x)
-                    * rotate4x4Y(DEG_TO_RAD * m_terrainRotation.y)
-                    * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z);
+  m_fogMatrix = translate4x4(m_boxOffset) 
+                * rotate4x4X(DEG_TO_RAD * m_terrainRotation.x)
+                * rotate4x4Y(DEG_TO_RAD * m_terrainRotation.y)
+                * rotate4x4Z(DEG_TO_RAD * m_terrainRotation.z);
 
 }
 

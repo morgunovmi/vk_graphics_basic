@@ -135,7 +135,7 @@ void main()
     vec3 rd = normalize((inverse(params.mModel) * vec4(worldPosToEye, 0.0)).xyz);
     vec3 ro = surf.oPos - 1.0 * rd;
 
-    vec3 boxSize = vec3(1.0, 1.0, 1.0);
+    vec3 boxSize = vec3(Noise.boxSize);
     vec2 hits = boxIntersection(ro, rd, boxSize);
 
     vec3 exit = ro + hits.x * rd;
@@ -149,7 +149,7 @@ void main()
     // if (length(segmentCenter) > 1.0)
     //     discard;
     
-    const int stepCount = 100;
+    const int stepCount = 100 * int((Noise.boxSize.x + Noise.boxSize.y + Noise.boxSize.z) / 3.f);
     float stepSize = length(exit - entry) / stepCount;
 
     float transmittance = 1.0;

@@ -57,6 +57,8 @@ struct NoiseParams
   shader_vec3  noiseScale;        // 12
   shader_float extinctionCoef;    // 4
   shader_vec3  noiseOffset;       // 12
+  shader_float pad;               // 4
+  shader_vec3  boxSize;           // 12
 };
 
 #endif // VK_GRAPHICS_BASIC_COMMON_H
