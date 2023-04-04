@@ -13,6 +13,14 @@ void SimpleShadowmapRender::SetupGUIElements()
 
     ImGui::ColorEdit3("Meshes base color", m_uniforms.baseColor.M, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoInputs);
     ImGui::SliderFloat3("Light source position", m_uniforms.lightPos.M, -10.f, 10.f);
+    
+    const char* aas[] = { "NONE", "SSAA" };
+    AAType prevType = m_currentAntialiasing;
+    ImGui::Combo("Antialiasing method", (int* )&m_currentAntialiasing, aas, IM_ARRAYSIZE(aas));
+    if (m_currentAntialiasing != prevType)
+    {
+      m_aaModeChanged = true;
+    }
 
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 

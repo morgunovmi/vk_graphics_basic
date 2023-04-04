@@ -47,7 +47,9 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
+  etna::Image superImage;
   etna::Sampler defaultSampler;
+  etna::Sampler linearSampler;
   etna::Buffer constants;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
@@ -77,6 +79,14 @@ private:
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_quadDisplayPipeline {};
+  enum AAType
+  {
+    NONE,
+    SSAA
+  };
+  AAType m_currentAntialiasing = NONE;
+  bool m_aaModeChanged = false;
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
@@ -111,7 +121,7 @@ private:
   struct ShadowMapCam
   {
     ShadowMapCam() 
-    {  
+    {
       cam.pos    = float3(4.0f, 4.0f, 4.0f);
       cam.lookAt = float3(0, 0, 0);
       cam.up     = float3(0, 1, 0);
