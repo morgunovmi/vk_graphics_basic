@@ -50,6 +50,11 @@ private:
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
+  struct {
+    etna::Image albedo;
+    etna::Image normals;
+  } gbuffer;
+
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;
 
   struct
@@ -66,8 +71,19 @@ private:
   struct
   {
     float4x4 projView;
-    float4x4 model;
+    float4 modelRow1;
+    float4 modelRow2;
+    float4 modelRow3;
+    float4 objColor;
   } pushConst2M;
+
+  std::vector<LiteMath::float4> objColors{};
+
+  struct
+  {
+    float4x4 projInverse;
+    float4x4 viewInverse;
+  } pushConstDeferred;
 
   float4x4 m_worldViewProj;
   float4x4 m_lightMatrix;    
@@ -75,8 +91,9 @@ private:
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
 
-  etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_geometryPipeline {};
+  etna::GraphicsPipeline m_shadingPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
