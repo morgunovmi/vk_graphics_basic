@@ -59,7 +59,7 @@ void SimpleShadowmapRender::AllocateResources()
 
   kernelBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
   {
-    .size = sizeof(float3) * numSsaoSamples,
+    .size = sizeof(float4) * numSsaoSamples,
     .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "ssao_samples"
@@ -120,10 +120,11 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   ssaoKernel.clear();
   for (size_t i = 0; i < numSsaoSamples; ++i)
   {
-    LiteMath::float3 sample{
+    LiteMath::float4 sample{
       randomFloats(gen) * 2.0f - 1.0f,
       randomFloats(gen) * 2.0f - 1.0f,
-      randomFloats(gen)
+      randomFloats(gen),
+      0.0f
     };
     sample = LiteMath::normalize(sample);
     sample *= randomFloats(gen);
@@ -134,7 +135,7 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
     ssaoKernel.push_back(sample);
   }
   auto *mapped_mem = kernelBuffer.map();
-  memcpy(mapped_mem, ssaoKernel.data(), sizeof(float3) * ssaoKernel.size());
+  memcpy(mapped_mem, ssaoKernel.data(), sizeof(float4) * ssaoKernel.size());
   kernelBuffer.unmap();
 
   ssaoNoise.clear();
@@ -399,15 +400,12 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
   }
 
-  etna::set_state(a_cmdBuff, shadowMap.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+  etna::set_state(a_cmdBuff, noiseTexture.get(), vk::PipelineStageFlagBits2::eFragmentShader,
     vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eDepth);
+    vk::ImageAspectFlagBits::eColor);
   etna::set_state(a_cmdBuff, mainViewDepth.get(), vk::PipelineStageFlagBits2::eFragmentShader,
     vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
     vk::ImageAspectFlagBits::eDepth);
-  etna::set_state(a_cmdBuff, gbuffer.albedo.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eColor);
   etna::set_state(a_cmdBuff, gbuffer.normals.get(), vk::PipelineStageFlagBits2::eFragmentShader,
     vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
     vk::ImageAspectFlagBits::eColor);
@@ -439,6 +437,21 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
   }
+
+  etna::set_state(a_cmdBuff, shadowMap.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eDepth);
+  etna::set_state(a_cmdBuff, mainViewDepth.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eDepth);
+  etna::set_state(a_cmdBuff, gbuffer.albedo.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eColor);
+  etna::set_state(a_cmdBuff, gbuffer.normals.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eColor);
+  etna::flush_barriers(a_cmdBuff);
+
 
   //// draw final scene to screen
   //

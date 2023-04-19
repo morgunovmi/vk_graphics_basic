@@ -82,7 +82,7 @@ private:
   std::vector<LiteMath::float4> objColors{};
 
   uint16_t numSsaoSamples = 64u;
-  std::vector<LiteMath::float3> ssaoKernel{};
+  std::vector<LiteMath::float4> ssaoKernel{};
   etna::Buffer kernelBuffer{};
   std::vector<LiteMath::float4> ssaoNoise{};
   etna::Buffer noiseBuffer{};
