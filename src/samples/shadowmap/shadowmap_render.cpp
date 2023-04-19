@@ -45,7 +45,7 @@ void SimpleShadowmapRender::AllocateResources()
     .extent = vk::Extent3D{2048, 2048, 1},
     .name = "shadow_map",
     .format = vk::Format::eD16Unorm,
-    .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled
+    .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled,
   });
 
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
@@ -56,6 +56,22 @@ void SimpleShadowmapRender::AllocateResources()
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "constants"
   });
+
+  noiseBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = 4 * 4 * sizeof(float) * 4, // 4x4 rgba16f image
+    .bufferUsage = vk::BufferUsageFlagBits::eTransferSrc,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+    .name = "noiseStagingBuffer"
+  });
+  noiseTexture = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{4, 4, 1},
+    .name = "shadow_map",
+    .format = vk::Format::eR16G16B16A16Sfloat,
+    .imageUsage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled
+  });
+  noiseTextureSampler = etna::Sampler(etna::Sampler::CreateInfo{.addressMode = vk::SamplerAddressMode::eRepeat, .name = "noise_sampler"});
 
   m_uboMappedMem = constants.map();
 }
@@ -83,6 +99,92 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   {
     objColors.emplace_back(LiteMath::float4{colorDistr(gen), colorDistr(gen), colorDistr(gen), 1.0f});
   }
+
+  std::uniform_real_distribution<float> randomFloats{0.0f, 1.0f};
+  ssaoKernel.clear();
+  for (size_t i = 0; i < numSsaoSamples; ++i)
+  {
+    LiteMath::float3 sample{
+      randomFloats(gen) * 2.0f - 1.0f,
+      randomFloats(gen) * 2.0f - 1.0f,
+      randomFloats(gen)
+    };
+    sample = LiteMath::normalize(sample);
+    sample *= randomFloats(gen);
+
+    float scale = i / 64.0f; 
+    scale = LiteMath::lerp(0.1f, 1.0f, scale * scale);
+    sample *= scale;
+    ssaoKernel.push_back(sample);
+  }
+
+  ssaoNoise.clear();
+  for (size_t i = 0; i < 16; ++i)
+  {
+    ssaoNoise.emplace_back(
+      randomFloats(gen) * 2.0f - 1.0f,
+      randomFloats(gen) * 2.0f - 1.0f,
+      0.0f,
+      0.0f
+    );
+  }
+  m_noiseBufferMappedMep = noiseBuffer.map();
+  memcpy(m_noiseBufferMappedMep, ssaoNoise.data(), sizeof(float4) * ssaoNoise.size());
+  noiseBuffer.unmap();
+
+  copyNoise();
+}
+
+void SimpleShadowmapRender::copyNoise()
+{
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(m_cmdBufferAux, &beginInfo);
+
+    // commands
+    etna::set_state(m_cmdBufferAux, noiseTexture.get(), vk::PipelineStageFlagBits2::eTransfer,
+      vk::AccessFlagBits2::eTransferWrite, vk::ImageLayout::eTransferDstOptimal,
+      vk::ImageAspectFlagBits::eColor);
+    etna::flush_barriers(m_cmdBufferAux);
+
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = 0;
+    region.imageSubresource.layerCount = 1;
+
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {4, 4, 1};
+
+    vkCmdCopyBufferToImage(
+        m_cmdBufferAux,
+        noiseBuffer.get(),
+        noiseTexture.get(),
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1,
+        &region
+    );
+
+    etna::set_state(m_cmdBufferAux, noiseTexture.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+      vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageAspectFlagBits::eColor);
+    etna::flush_barriers(m_cmdBufferAux);
+
+    vkEndCommandBuffer(m_cmdBufferAux);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_cmdBufferAux;
+
+    vkQueueSubmit(m_context->getQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_context->getQueue());
 }
 
 void SimpleShadowmapRender::DeallocateResources()

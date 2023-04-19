@@ -67,6 +67,7 @@ private:
 
   std::vector<VkFence> m_frameFences;
   std::vector<VkCommandBuffer> m_cmdBuffersDrawMain;
+  VkCommandBuffer m_cmdBufferAux;
 
   struct
   {
@@ -78,6 +79,17 @@ private:
   } pushConst2M;
 
   std::vector<LiteMath::float4> objColors{};
+
+  uint16_t numSsaoSamples = 64u;
+  std::vector<LiteMath::float3> ssaoKernel{};
+  std::vector<LiteMath::float4> ssaoNoise{};
+  etna::Buffer noiseBuffer{};
+  etna::Image noiseTexture{};
+  etna::Sampler noiseTextureSampler{};
+  void* m_noiseBufferMappedMep = nullptr;
+
+  void copyNoise();
+
 
   struct
   {
