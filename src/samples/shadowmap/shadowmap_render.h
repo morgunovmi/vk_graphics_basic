@@ -47,6 +47,7 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
+  etna::Image ssaoRawImage;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
@@ -82,6 +83,7 @@ private:
 
   uint16_t numSsaoSamples = 64u;
   std::vector<LiteMath::float3> ssaoKernel{};
+  etna::Buffer kernelBuffer{};
   std::vector<LiteMath::float4> ssaoNoise{};
   etna::Buffer noiseBuffer{};
   etna::Image noiseTexture{};
@@ -106,6 +108,7 @@ private:
   etna::GraphicsPipeline m_shadowPipeline {};
   etna::GraphicsPipeline m_geometryPipeline {};
   etna::GraphicsPipeline m_shadingPipeline {};
+  etna::GraphicsPipeline m_ssaoPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   

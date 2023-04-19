@@ -57,6 +57,14 @@ void SimpleShadowmapRender::AllocateResources()
     .name = "constants"
   });
 
+  kernelBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(float3) * numSsaoSamples,
+    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+    .name = "ssao_samples"
+  });
+
   noiseBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
   {
     .size = 4 * 4 * sizeof(float) * 4, // 4x4 rgba16f image
@@ -67,11 +75,19 @@ void SimpleShadowmapRender::AllocateResources()
   noiseTexture = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{4, 4, 1},
-    .name = "shadow_map",
+    .name = "noise_texture",
     .format = vk::Format::eR16G16B16A16Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled
   });
   noiseTextureSampler = etna::Sampler(etna::Sampler::CreateInfo{.addressMode = vk::SamplerAddressMode::eRepeat, .name = "noise_sampler"});
+
+  ssaoRawImage = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{m_width, m_height, 1},
+    .name = "ssao_raw",
+    .format = vk::Format::eR16Sfloat,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
 
   m_uboMappedMem = constants.map();
 }
@@ -117,6 +133,9 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
     sample *= scale;
     ssaoKernel.push_back(sample);
   }
+  auto *mapped_mem = kernelBuffer.map();
+  memcpy(mapped_mem, ssaoKernel.data(), sizeof(float3) * ssaoKernel.size());
+  kernelBuffer.unmap();
 
   ssaoNoise.clear();
   for (size_t i = 0; i < 16; ++i)
@@ -231,6 +250,8 @@ void SimpleShadowmapRender::loadShaders()
     {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_geometry.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
   etna::create_program("simple_deferred", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_quad.vert.spv",
                                           VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_deferred.frag.spv"});
+  etna::create_program("simple_ssao", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_quad.vert.spv",
+                                      VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_ssao.frag.spv"});
 }
 
 void SimpleShadowmapRender::SetupSimplePipeline()
@@ -295,6 +316,17 @@ void SimpleShadowmapRender::SetupSimplePipeline()
       .fragmentShaderOutput =
         {
           .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
+        }
+    });
+  m_ssaoPipeline = pipelineManager.createGraphicsPipeline("simple_ssao",
+    {
+      .depthConfig = 
+        {
+          .depthTestEnable = false,
+        },
+      .fragmentShaderOutput =
+        {
+          .colorAttachmentFormats = {vk::Format::eR16Sfloat},
         }
     });
 }
@@ -380,6 +412,33 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
     vk::ImageAspectFlagBits::eColor);
   etna::flush_barriers(a_cmdBuff);
+
+  //// calculate raw ssao
+  //
+  {
+    auto simpleSsaoInfo  = etna::get_shader_program("simple_ssao");
+
+    auto set = etna::create_descriptor_set(simpleSsaoInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    {
+      etna::Binding {0, kernelBuffer.genBinding()},
+      etna::Binding {1, noiseTexture.genBinding(noiseTextureSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {2, gbuffer.normals.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {3, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
+
+    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {ssaoRawImage}, {});
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ssaoPipeline.getVkPipeline());
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+      m_ssaoPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+    vkCmdPushConstants(a_cmdBuff, m_ssaoPipeline.getVkPipelineLayout(),
+      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstDeferred), &pushConstDeferred);
+
+    vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
+  }
 
   //// draw final scene to screen
   //
