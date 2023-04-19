@@ -39,6 +39,9 @@ void SimpleShadowmapRender::UpdateView()
   
   mLookAt       = LiteMath::lookAt(m_light.cam.pos, m_light.cam.pos + m_light.cam.forward()*10.0f, m_light.cam.up);
   m_lightMatrix = mProjFix*mProj*mLookAt;
+
+  m_uniforms.viewMat     = mLookAt;
+  m_uniforms.projMat     = mProjFix*mProj;
 }
 
 void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)

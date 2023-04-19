@@ -45,6 +45,8 @@ using shader_bool  = LiteMath::uint;
 struct UniformParams
 {
   shader_mat4  lightMatrix;
+  shader_mat4  projMat;
+  shader_mat4  viewMat;
   shader_vec3  lightPos;
   shader_float time;
   shader_vec3  baseColor;
