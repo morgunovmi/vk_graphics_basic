@@ -268,9 +268,9 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   etna::set_state(a_cmdBuff, shadowMap.get(), vk::PipelineStageFlagBits2::eFragmentShader,
     vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
     vk::ImageAspectFlagBits::eDepth);
-  // etna::set_state(a_cmdBuff, mainViewDepth.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-  //   vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-  //   vk::ImageAspectFlagBits::eDepth);
+  etna::set_state(a_cmdBuff, mainViewDepth.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eDepth);
   etna::set_state(a_cmdBuff, gbuffer.albedo.get(), vk::PipelineStageFlagBits2::eFragmentShader,
     vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
     vk::ImageAspectFlagBits::eColor);

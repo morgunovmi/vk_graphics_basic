@@ -53,6 +53,6 @@ void main()
   vec4 lightColor2 = vec4(1.0f, 1.0f, 1.0f, 1.0f);
   
   vec3 lightDir   = normalize(Params.lightPos - wPos.xyz);
-  vec4 lightColor = max(dot(wNorm.xyz, lightDir), 0.0f) * lightColor1;
+  vec4 lightColor = max(dot(wNorm.xyz, lightDir), 0.0f) * lightColor2;
   out_fragColor   = (lightColor * shadow + vec4(0.1f)) * textureLod(gAlbedo, vOut.texCoord, 0);
 }
