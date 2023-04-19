@@ -67,7 +67,7 @@ void SimpleShadowmapRender::AllocateResources()
 
   noiseBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
   {
-    .size = 4 * 4 * sizeof(float) * 4, // 4x4 rgba16f image
+    .size = 4 * 4 * 4 * 4, // 4x4 rgba32f image
     .bufferUsage = vk::BufferUsageFlagBits::eTransferSrc,
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "noiseStagingBuffer"
@@ -76,7 +76,7 @@ void SimpleShadowmapRender::AllocateResources()
   {
     .extent = vk::Extent3D{4, 4, 1},
     .name = "noise_texture",
-    .format = vk::Format::eR16G16B16A16Sfloat,
+    .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled
   });
   noiseTextureSampler = etna::Sampler(etna::Sampler::CreateInfo{.addressMode = vk::SamplerAddressMode::eRepeat, .name = "noise_sampler"});
