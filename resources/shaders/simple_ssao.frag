@@ -6,9 +6,9 @@
 
 layout(location = 0) out float color;
 
-layout (binding = 0) uniform Kernel
+layout (binding = 0) buffer Kernel
 {
-    vec4 samples[64];
+    vec4 samples[];
 };
 
 layout(binding = 1) uniform AppData
@@ -33,10 +33,6 @@ layout (location = 0) in VS_OUT
 
 const vec2 noiseScale = vec2(1024 / 4.0, 1024 / 4.0);
 
-const int kernelSize = 64;
-const float radius = 0.5;
-const float bias = 0.025;
-
 void main()
 {
     const vec4 vPos = textureLod(gPosition, vOut.texCoord, 0);
@@ -48,10 +44,10 @@ void main()
     mat3 TBN = mat3(tangent, bitangent, vNorm);
 
     float occlusion = 0.0;
-    for (int i = 0; i < kernelSize; ++i)
+    for (int i = 0; i < ubo.ssaoKernelSize; ++i)
     {
         vec3 samplePos = TBN * samples[i].xyz;
-        samplePos = vPos.xyz + samplePos * radius;
+        samplePos = vPos.xyz + samplePos * ubo.ssaoRadius;
 
         vec4 offset = vec4(samplePos, 1.0);
         offset = ubo.projMat * offset;
@@ -60,8 +56,8 @@ void main()
 
         float sampleDepth = texture(gPosition, offset.xy).z;
 
-        occlusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0);
+        occlusion += (sampleDepth >= samplePos.z + ubo.ssaoDepthBias ? 1.0 : 0.0);
     }
     
-    color = 1.0 - (occlusion / kernelSize);
+    color = 1.0 - (occlusion / ubo.ssaoKernelSize);
 }

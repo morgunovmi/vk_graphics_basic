@@ -67,8 +67,8 @@ void SimpleShadowmapRender::AllocateResources()
 
   kernelBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
   {
-    .size = sizeof(float4) * numSsaoSamples,
-    .bufferUsage = vk::BufferUsageFlagBits::eUniformBuffer,
+    .size = sizeof(float4) * ssaoKernelSize,
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "ssao_samples"
   });
@@ -100,6 +100,34 @@ void SimpleShadowmapRender::AllocateResources()
   m_uboMappedMem = constants.map();
 }
 
+void SimpleShadowmapRender::generateSsaoKernel()
+{
+  std::random_device rd{};
+  std::default_random_engine gen{rd()};
+  std::uniform_real_distribution<float> randomFloats{0.0f, 1.0f};
+
+  ssaoKernel.clear();
+  for (size_t i = 0; i < ssaoKernelSize; ++i)
+  {
+    LiteMath::float4 sample{
+      randomFloats(gen) * 2.0f - 1.0f,
+      randomFloats(gen) * 2.0f - 1.0f,
+      randomFloats(gen),
+      0.0f
+    };
+    sample = LiteMath::normalize(sample);
+    sample *= randomFloats(gen);
+
+    float scale = i / static_cast<float>(ssaoKernelSize); 
+    scale = LiteMath::lerp(0.1f, 1.0f, scale * scale);
+    sample *= scale;
+    ssaoKernel.push_back(sample);
+  }
+  auto *mapped_mem = kernelBuffer.map();
+  memcpy(mapped_mem, ssaoKernel.data(), sizeof(float4) * ssaoKernel.size());
+  kernelBuffer.unmap();
+}
+
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
 {
   m_pScnMgr->LoadSceneXML(path, transpose_inst_matrices);
@@ -125,26 +153,7 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   }
 
   std::uniform_real_distribution<float> randomFloats{0.0f, 1.0f};
-  ssaoKernel.clear();
-  for (size_t i = 0; i < numSsaoSamples; ++i)
-  {
-    LiteMath::float4 sample{
-      randomFloats(gen) * 2.0f - 1.0f,
-      randomFloats(gen) * 2.0f - 1.0f,
-      randomFloats(gen),
-      0.0f
-    };
-    sample = LiteMath::normalize(sample);
-    sample *= randomFloats(gen);
-
-    float scale = i / 64.0f; 
-    scale = LiteMath::lerp(0.1f, 1.0f, scale * scale);
-    sample *= scale;
-    ssaoKernel.push_back(sample);
-  }
-  auto *mapped_mem = kernelBuffer.map();
-  memcpy(mapped_mem, ssaoKernel.data(), sizeof(float4) * ssaoKernel.size());
-  kernelBuffer.unmap();
+  generateSsaoKernel();
 
   ssaoNoise.clear();
   for (size_t i = 0; i < 16; ++i)

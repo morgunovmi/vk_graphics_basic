@@ -82,7 +82,11 @@ private:
 
   std::vector<LiteMath::float4> objColors{};
 
-  uint16_t numSsaoSamples = 64u;
+  uint32_t ssaoKernelSize = 64u;
+  uint32_t oldKernelSize = 64u;
+  float ssaoRadius = 0.5f;
+  float ssaoDepthBias = 0.025f;
+
   std::vector<LiteMath::float4> ssaoKernel{};
   etna::Buffer kernelBuffer{};
   std::vector<LiteMath::float4> ssaoNoise{};
@@ -91,6 +95,7 @@ private:
   etna::Sampler noiseTextureSampler{};
   void* m_noiseBufferMappedMep = nullptr;
 
+  void generateSsaoKernel();
   void copyNoise();
 
 
