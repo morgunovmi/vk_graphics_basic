@@ -48,6 +48,7 @@ private:
   etna::Image mainViewDepth;
   etna::Image shadowMap;
   etna::Image ssaoRawImage;
+  etna::Image ssaoBlurredImage;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
@@ -96,6 +97,9 @@ private:
   etna::Sampler noiseTextureSampler{};
   void* m_noiseBufferMappedMep = nullptr;
 
+  uint32_t m_kernelSize = 21u;
+  std::vector<float> m_coeffs{};
+
   void generateSsaoKernel();
   void copyNoise();
 
@@ -116,6 +120,8 @@ private:
   etna::GraphicsPipeline m_geometryPipeline {};
   etna::GraphicsPipeline m_shadingPipeline {};
   etna::GraphicsPipeline m_ssaoPipeline {};
+  etna::ComputePipeline m_computePipelineVertical {};
+  etna::ComputePipeline m_computePipelineHorizontal {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   

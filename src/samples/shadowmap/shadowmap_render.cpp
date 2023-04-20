@@ -10,6 +10,7 @@
 #include <etna/RenderTargetStates.hpp>
 #include <vulkan/vulkan_core.h>
 #include <random>
+#include <numeric>
 
 
 /// RESOURCE ALLOCATION
@@ -94,7 +95,15 @@ void SimpleShadowmapRender::AllocateResources()
     .extent = vk::Extent3D{m_width, m_height, 1},
     .name = "ssao_raw",
     .format = vk::Format::eR16Sfloat,
-    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+    .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+
+  ssaoBlurredImage = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{m_width, m_height, 1},
+    .name = "ssao_blurred",
+    .format = vk::Format::eR16Sfloat,
+    .imageUsage = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
   m_uboMappedMem = constants.map();
@@ -170,6 +179,21 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   noiseBuffer.unmap();
 
   copyNoise();
+
+  m_coeffs.resize(m_kernelSize);
+  const float kernelRadius = (m_kernelSize - 1) / 2.f;
+  const auto sigma = kernelRadius / 3.f;
+  const auto sigma2 = 2 * sigma * sigma;
+  for (size_t i = 0; i < m_kernelSize; ++i)
+  {
+    const auto delta = static_cast<float>(i) - kernelRadius;
+    m_coeffs[i] = std::exp(-delta * delta / sigma2);
+  }
+  const auto sum = std::accumulate(m_coeffs.cbegin(), m_coeffs.cend(), 0.f);
+  for (size_t i = 0; i < m_kernelSize; ++i)
+  {
+    m_coeffs[i] /= sum;
+  }
 }
 
 void SimpleShadowmapRender::copyNoise()
@@ -270,6 +294,8 @@ void SimpleShadowmapRender::loadShaders()
                                           VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_deferred.frag.spv"});
   etna::create_program("simple_ssao", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_quad.vert.spv",
                                       VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_ssao.frag.spv"});
+  etna::create_program("gaussian_compute_vertical", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/gaussian_vertical.comp.spv"});
+  etna::create_program("gaussian_compute_horizontal", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/gaussian_horizontal.comp.spv"});
 }
 
 void SimpleShadowmapRender::SetupSimplePipeline()
@@ -347,6 +373,8 @@ void SimpleShadowmapRender::SetupSimplePipeline()
           .colorAttachmentFormats = {vk::Format::eR16Sfloat},
         }
     });
+  m_computePipelineVertical = pipelineManager.createComputePipeline("gaussian_compute_vertical", {});
+  m_computePipelineHorizontal = pipelineManager.createComputePipeline("gaussian_compute_horizontal", {});
 }
 
 void SimpleShadowmapRender::DestroyPipelines()
@@ -466,6 +494,68 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
         VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstDeferred), &pushConstDeferred);
 
       vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
+    }
+
+    etna::set_state(a_cmdBuff, ssaoRawImage.get(), vk::PipelineStageFlagBits2::eComputeShader,
+      vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eGeneral,
+      vk::ImageAspectFlagBits::eColor);
+    etna::set_state(a_cmdBuff, ssaoBlurredImage.get(), vk::PipelineStageFlagBits2::eComputeShader,
+      vk::AccessFlagBits2::eShaderWrite, vk::ImageLayout::eGeneral,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::flush_barriers(a_cmdBuff);
+
+      // Apply horizontal gaussian filter in compute shader
+    {
+      auto gaussianComputeInfo = etna::get_shader_program("gaussian_compute_horizontal");
+
+      auto set = etna::create_descriptor_set(gaussianComputeInfo.getDescriptorLayoutId(0), a_cmdBuff,
+      {
+        etna::Binding {0, ssaoRawImage.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
+        etna::Binding {1, ssaoBlurredImage.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
+      });
+
+      VkDescriptorSet vkSet = set.getVkSet();
+
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineHorizontal.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
+        m_computePipelineHorizontal.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+      vkCmdPushConstants(a_cmdBuff, m_computePipelineHorizontal.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
+                        0, m_coeffs.size() * sizeof(float), m_coeffs.data());
+
+      vkCmdDispatch(a_cmdBuff, 1024 / 32 + 1, 1024, 1);
+    }
+
+    etna::set_state(a_cmdBuff, ssaoRawImage.get(), vk::PipelineStageFlagBits2::eComputeShader,
+      vk::AccessFlagBits2::eShaderWrite, vk::ImageLayout::eGeneral,
+      vk::ImageAspectFlagBits::eColor);
+    etna::set_state(a_cmdBuff, ssaoBlurredImage.get(), vk::PipelineStageFlagBits2::eComputeShader,
+      vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eGeneral,
+      vk::ImageAspectFlagBits::eColor);
+
+    etna::flush_barriers(a_cmdBuff);
+
+      // Apply vertical gaussian filter in compute shader
+    {
+      auto gaussianComputeInfo = etna::get_shader_program("gaussian_compute_vertical");
+
+      auto set = etna::create_descriptor_set(gaussianComputeInfo.getDescriptorLayoutId(0), a_cmdBuff,
+      {
+        etna::Binding {0, ssaoBlurredImage.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
+        etna::Binding {1, ssaoRawImage.genBinding(defaultSampler.get(), vk::ImageLayout::eGeneral)},
+      });
+
+      VkDescriptorSet vkSet = set.getVkSet();
+
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineVertical.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
+        m_computePipelineVertical.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+      vkCmdPushConstants(a_cmdBuff, m_computePipelineVertical.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
+                        0, m_coeffs.size() * sizeof(float), m_coeffs.data());
+
+      vkCmdDispatch(a_cmdBuff, 1024, 1024 / 32 + 1, 1);
     }
   }
 
