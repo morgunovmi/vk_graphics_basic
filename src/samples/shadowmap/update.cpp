@@ -68,9 +68,9 @@ void SimpleShadowmapRender::ProcessInput(const AppInput &input)
   if(input.keyPressed[GLFW_KEY_B])
   {
 #ifdef WIN32
-    std::system("cd ../resources/shaders && python compile_shadowmap_shaders.py");
+    std::system("cd ../../resources/shaders && python compile_shadowmap_shaders.py");
 #else
-    std::system("cd ../resources/shaders && python3 compile_shadowmap_shaders.py");
+    std::system("cd ../../resources/shaders && python3 compile_shadowmap_shaders.py");
 #endif
 
     etna::reload_shaders();

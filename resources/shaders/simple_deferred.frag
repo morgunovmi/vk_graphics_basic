@@ -26,6 +26,7 @@ layout (binding = 1) uniform sampler2D shadowMap;
 layout (binding = 2) uniform sampler2D gAlbedo;
 layout (binding = 3) uniform sampler2D gNormals;
 layout (binding = 4) uniform sampler2D depth;
+layout (binding = 5) uniform sampler2D ssao;
 
 void main()
 {
@@ -51,8 +52,9 @@ void main()
 
   vec4 lightColor1 = mix(dark_violet, chartreuse, abs(sin(Params.time)));
   vec4 lightColor2 = vec4(1.0f, 1.0f, 1.0f, 1.0f);
+  const float occlusion = textureLod(ssao, vOut.texCoord, 0).x;
   
   vec3 lightDir   = normalize(Params.lightPos - wPos.xyz);
   vec4 lightColor = max(dot(wNorm.xyz, lightDir), 0.0f) * lightColor2;
-  out_fragColor   = (lightColor * shadow + vec4(0.1f)) * textureLod(gAlbedo, vOut.texCoord, 0);
+  out_fragColor   = (lightColor * shadow * occlusion + vec4(0.1f)) * textureLod(gAlbedo, vOut.texCoord, 0);
 }
