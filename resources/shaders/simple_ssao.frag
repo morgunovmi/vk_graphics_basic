@@ -35,29 +35,30 @@ const vec2 noiseScale = vec2(1024 / 4.0, 1024 / 4.0);
 
 void main()
 {
-    const vec4 vPos = textureLod(gPosition, vOut.texCoord, 0);
-    const vec3 vNorm = normalize(textureLod(gNormal, vOut.texCoord, 0).xyz);
-    const vec3 randomVec = normalize(texture(texNoise, vOut.texCoord * noiseScale).xyz);
+  const vec4 vPos = textureLod(gPosition, vOut.texCoord, 0);
+  const vec3 vNorm = normalize(textureLod(gNormal, vOut.texCoord, 0).xyz);
+  const vec3 randomVec = normalize(texture(texNoise, vOut.texCoord * noiseScale).xyz);
 
-    const vec3 tangent = normalize(randomVec - vNorm * dot(randomVec, vNorm));
-    const vec3 bitangent = cross(vNorm, tangent);
-    mat3 TBN = mat3(tangent, bitangent, vNorm);
+  const vec3 tangent = normalize(randomVec - vNorm * dot(randomVec, vNorm));
+  const vec3 bitangent = cross(vNorm, tangent);
+  mat3 TBN = mat3(tangent, bitangent, vNorm);
 
-    float occlusion = 0.0;
-    for (int i = 0; i < ubo.ssaoKernelSize; ++i)
-    {
-        vec3 samplePos = TBN * samples[i].xyz;
-        samplePos = vPos.xyz + samplePos * ubo.ssaoRadius;
+  float occlusion = 0.0;
+  for (int i = 0; i < ubo.ssaoKernelSize; ++i)
+  {
+    vec3 samplePos = TBN * samples[i].xyz;
+    samplePos = vPos.xyz + samplePos * ubo.ssaoRadius;
 
-        vec4 offset = vec4(samplePos, 1.0);
-        offset = ubo.projMat * offset;
-        offset.xyz /= offset.w;
-        offset.xyz = offset.xyz * 0.5 + 0.5;
+    vec4 offset = vec4(samplePos, 1.0);
+    offset = ubo.projMat * offset;
+    offset.xyz /= offset.w;
+    offset.xyz = offset.xyz * 0.5 + 0.5;
 
-        float sampleDepth = texture(gPosition, offset.xy).z;
+    float sampleDepth = texture(gPosition, offset.xy).z;
 
-        occlusion += (sampleDepth >= samplePos.z + ubo.ssaoDepthBias ? 1.0 : 0.0);
-    }
-    
-    color = 1.0 - (occlusion / ubo.ssaoKernelSize);
+    float rangeCheck = smoothstep(0.0, 1.0, ubo.ssaoRadius / abs(vPos.z - sampleDepth));
+    occlusion += (sampleDepth >= samplePos.z + ubo.ssaoDepthBias ? 1.0 : 0.0) * rangeCheck;
+  }
+  
+  color = 1.0 - (occlusion / ubo.ssaoKernelSize);
 }
