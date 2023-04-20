@@ -45,9 +45,9 @@ void main()
     vec4 viewSpacePosition = params.projInverse * clipSpacePosition;
     viewSpacePosition /= viewSpacePosition.w;
 
-    vec3 wNorm = texture(gNormal, vOut.texCoord).rgb;
-    vec3 vNorm = (ubo.viewMat * vec4(wNorm, 1.0)).xyz;
-    vec3 randomVec = texture(texNoise, vOut.texCoord * noiseScale).xyz;
+    vec3 wNorm = normalize(texture(gNormal, vOut.texCoord).xyz);
+    vec3 vNorm = normalize((ubo.viewMat * vec4(wNorm, 1.0)).xyz);
+    vec3 randomVec = normalize(texture(texNoise, vOut.texCoord * noiseScale).xyz);
 
     vec3 tangent = normalize(randomVec - vNorm * dot(randomVec, vNorm));
     vec3 bitangent = cross(vNorm, tangent);
@@ -69,5 +69,5 @@ void main()
         occlusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0);
     }
     
-    color =  occlusion;
+    color = 1.0 - (occlusion / 64);
 }
