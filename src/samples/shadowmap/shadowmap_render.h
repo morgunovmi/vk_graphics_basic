@@ -82,6 +82,7 @@ private:
 
   std::vector<LiteMath::float4> objColors{};
 
+  bool ssaoEnabled = true;
   uint32_t ssaoKernelSize = 64u;
   uint32_t oldKernelSize = 64u;
   float ssaoRadius = 0.5f;

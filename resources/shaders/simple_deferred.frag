@@ -47,7 +47,7 @@ void main()
 
   vec4 lightColor1 = mix(dark_violet, chartreuse, abs(sin(Params.time)));
   vec4 lightColor2 = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-  const float occlusion = textureLod(ssao, vOut.texCoord, 0).x;
+  const float occlusion = Params.ssaoEnabled ? textureLod(ssao, vOut.texCoord, 0).x : 1.0f;
   
   vec3 lightDir   = normalize(Params.lightPos - wPos.xyz);
   vec4 lightColor = max(dot(wNorm.xyz, lightDir), 0.0f) * lightColor2;

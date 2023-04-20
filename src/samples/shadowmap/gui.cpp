@@ -13,6 +13,7 @@ void SimpleShadowmapRender::SetupGUIElements()
 
     ImGui::ColorEdit3("Meshes base color", m_uniforms.baseColor.M, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoInputs);
     ImGui::SliderFloat3("Light source position", m_uniforms.lightPos.M, -10.f, 10.f);
+    ImGui::Checkbox("SSAO enabled", &ssaoEnabled);
     ImGui::SliderInt("SSAO kernel size", (int *)&ssaoKernelSize, 1, 100);
     ImGui::SliderFloat("SSAO radius", &ssaoRadius, 0, 5);
     ImGui::SliderFloat("SSAO depth bias", &ssaoDepthBias, 0, 0.1);

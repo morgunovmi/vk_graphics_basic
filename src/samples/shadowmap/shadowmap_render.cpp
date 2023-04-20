@@ -427,43 +427,46 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
   }
 
-  etna::set_state(a_cmdBuff, noiseTexture.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eColor);
-  etna::set_state(a_cmdBuff, gbuffer.normals.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eColor);
-  etna::set_state(a_cmdBuff, gbuffer.positions.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eColor);
-  etna::flush_barriers(a_cmdBuff);
-
-  //// calculate raw ssao
-  //
+  if (ssaoEnabled)
   {
-    auto simpleSsaoInfo  = etna::get_shader_program("simple_ssao");
+    etna::set_state(a_cmdBuff, noiseTexture.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+      vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageAspectFlagBits::eColor);
+    etna::set_state(a_cmdBuff, gbuffer.normals.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+      vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageAspectFlagBits::eColor);
+    etna::set_state(a_cmdBuff, gbuffer.positions.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+      vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+      vk::ImageAspectFlagBits::eColor);
+    etna::flush_barriers(a_cmdBuff);
 
-    auto set = etna::create_descriptor_set(simpleSsaoInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    //// calculate raw ssao
+    //
     {
-      etna::Binding {0, kernelBuffer.genBinding()},
-      etna::Binding {1, constants.genBinding()},
-      etna::Binding {2, noiseTexture.genBinding(noiseTextureSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      etna::Binding {3, gbuffer.normals.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      etna::Binding {4, gbuffer.positions.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
-    });
+      auto simpleSsaoInfo  = etna::get_shader_program("simple_ssao");
 
-    VkDescriptorSet vkSet = set.getVkSet();
+      auto set = etna::create_descriptor_set(simpleSsaoInfo.getDescriptorLayoutId(0), a_cmdBuff,
+      {
+        etna::Binding {0, kernelBuffer.genBinding()},
+        etna::Binding {1, constants.genBinding()},
+        etna::Binding {2, noiseTexture.genBinding(noiseTextureSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+        etna::Binding {3, gbuffer.normals.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+        etna::Binding {4, gbuffer.positions.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
+      });
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {ssaoRawImage}, {});
+      VkDescriptorSet vkSet = set.getVkSet();
 
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ssaoPipeline.getVkPipeline());
-    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
-      m_ssaoPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+      etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {ssaoRawImage}, {});
 
-    vkCmdPushConstants(a_cmdBuff, m_ssaoPipeline.getVkPipelineLayout(),
-      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstDeferred), &pushConstDeferred);
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_ssaoPipeline.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_ssaoPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
-    vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
+      vkCmdPushConstants(a_cmdBuff, m_ssaoPipeline.getVkPipelineLayout(),
+        VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstDeferred), &pushConstDeferred);
+
+      vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
+    }
   }
 
   etna::set_state(a_cmdBuff, shadowMap.get(), vk::PipelineStageFlagBits2::eFragmentShader,
