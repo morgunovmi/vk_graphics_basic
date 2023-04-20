@@ -24,7 +24,7 @@ layout(push_constant) uniform params_t
 
 layout (binding = 2) uniform sampler2D texNoise;
 layout (binding = 3) uniform sampler2D gNormal;
-layout (binding = 4) uniform sampler2D depth;
+layout (binding = 4) uniform sampler2D gPosition;
 
 layout (location = 0) in VS_OUT
 {
@@ -32,42 +32,36 @@ layout (location = 0) in VS_OUT
 } vOut;
 
 const vec2 noiseScale = vec2(1024 / 4.0, 1024 / 4.0);
+
+const int kernelSize = 64;
 const float radius = 0.5;
 const float bias = 0.025;
 
 void main()
 {
-    float x = vOut.texCoord.x * 2.0 - 1.0;
-    float y = vOut.texCoord.y * 2.0 - 1.0;
-    float z = textureLod(depth, vOut.texCoord, 0).x;
+    const vec4 vPos = textureLod(gPosition, vOut.texCoord, 0);
+    const vec3 vNorm = normalize(textureLod(gNormal, vOut.texCoord, 0).xyz);
+    const vec3 randomVec = normalize(texture(texNoise, vOut.texCoord * noiseScale).xyz);
 
-    vec4 clipSpacePosition = vec4(x, y, z, 1.0);
-    vec4 viewSpacePosition = params.projInverse * clipSpacePosition;
-    viewSpacePosition /= viewSpacePosition.w;
-
-    vec3 wNorm = normalize(texture(gNormal, vOut.texCoord).xyz);
-    vec3 vNorm = normalize((ubo.viewMat * vec4(wNorm, 1.0)).xyz);
-    vec3 randomVec = normalize(texture(texNoise, vOut.texCoord * noiseScale).xyz);
-
-    vec3 tangent = normalize(randomVec - vNorm * dot(randomVec, vNorm));
-    vec3 bitangent = cross(vNorm, tangent);
+    const vec3 tangent = normalize(randomVec - vNorm * dot(randomVec, vNorm));
+    const vec3 bitangent = cross(vNorm, tangent);
     mat3 TBN = mat3(tangent, bitangent, vNorm);
 
     float occlusion = 0.0;
-    for (int i = 0; i < 64; ++i)
+    for (int i = 0; i < kernelSize; ++i)
     {
         vec3 samplePos = TBN * samples[i].xyz;
-        samplePos = viewSpacePosition.xyz + samplePos * radius;
+        samplePos = vPos.xyz + samplePos * radius;
 
         vec4 offset = vec4(samplePos, 1.0);
         offset = ubo.projMat * offset;
         offset.xyz /= offset.w;
         offset.xyz = offset.xyz * 0.5 + 0.5;
 
-        float sampleDepth = textureLod(depth, offset.xy, 0).x;
+        float sampleDepth = texture(gPosition, offset.xy).z;
 
         occlusion += (sampleDepth >= samplePos.z + bias ? 1.0 : 0.0);
     }
     
-    color = 1.0 - (occlusion / 64);
+    color = 1.0 - (occlusion / kernelSize);
 }

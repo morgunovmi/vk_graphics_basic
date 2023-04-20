@@ -54,6 +54,7 @@ private:
   struct {
     etna::Image albedo;
     etna::Image normals;
+    etna::Image positions;
   } gbuffer;
 
   VkCommandPool    m_commandPool    = VK_NULL_HANDLE;

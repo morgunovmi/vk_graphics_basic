@@ -25,21 +25,16 @@ layout(binding = 0, set = 0) uniform AppData
 layout (binding = 1) uniform sampler2D shadowMap;
 layout (binding = 2) uniform sampler2D gAlbedo;
 layout (binding = 3) uniform sampler2D gNormals;
-layout (binding = 4) uniform sampler2D depth;
+layout (binding = 4) uniform sampler2D gPosition;
 layout (binding = 5) uniform sampler2D ssao;
 
 void main()
 {
-  float x = vOut.texCoord.x * 2.0 - 1.0;
-  float y = vOut.texCoord.y * 2.0 - 1.0;
-  float z = textureLod(depth, vOut.texCoord, 0).x;
+  const vec4 vPos = textureLod(gPosition, vOut.texCoord, 0);
+  const vec4 wPos = params.viewInverse * vPos;
+  const vec4 vNorm = textureLod(gNormals, vOut.texCoord, 0);
+  const vec4 wNorm = params.viewInverse * vNorm;
 
-  vec4 clipSpacePosition = vec4(x, y, z, 1.0);
-  vec4 viewSpacePosition = params.projInverse * clipSpacePosition;
-  viewSpacePosition /= viewSpacePosition.w;
-  vec4 wPos = params.viewInverse * viewSpacePosition;
-
-  const vec4 wNorm = textureLod(gNormals, vOut.texCoord, 0);
   const vec4 posLightClipSpace = Params.lightMatrix * wPos; // 
   const vec3 posLightSpaceNDC  = posLightClipSpace.xyz / posLightClipSpace.w;    // for orto matrix, we don't need perspective division, you can remove it if you want; this is general case;
   const vec2 shadowTexCoord    = posLightSpaceNDC.xy * 0.5f + vec2(0.5f, 0.5f);  // just shift coords from [-1,1] to [0,1]               

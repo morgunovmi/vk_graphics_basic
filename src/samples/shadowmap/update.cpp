@@ -24,6 +24,8 @@ void SimpleShadowmapRender::UpdateView()
   m_worldViewProj = mWorldViewProj;
   pushConstDeferred.projInverse = LiteMath::inverse4x4(mProjFix * mProj);
   pushConstDeferred.viewInverse = LiteMath::inverse4x4(mLookAt);
+  m_uniforms.projMat     = mProjFix * mProj;
+  m_uniforms.viewMat     = mLookAt;
   
   ///// calc light matrix
   //
@@ -39,9 +41,6 @@ void SimpleShadowmapRender::UpdateView()
   
   mLookAt       = LiteMath::lookAt(m_light.cam.pos, m_light.cam.pos + m_light.cam.forward()*10.0f, m_light.cam.up);
   m_lightMatrix = mProjFix*mProj*mLookAt;
-
-  m_uniforms.viewMat     = mLookAt;
-  m_uniforms.projMat     = mProjFix*mProj;
 }
 
 void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)

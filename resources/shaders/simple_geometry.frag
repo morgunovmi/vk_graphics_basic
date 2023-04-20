@@ -6,6 +6,7 @@
 
 layout(location = 0) out vec4 gAlbedo;
 layout(location = 1) out vec4 gNormal;
+layout(location = 2) out vec4 gPosition;
 
 layout (location = 0) in VS_OUT
 {
@@ -22,8 +23,14 @@ layout(push_constant) uniform params_t
     vec4 objColor;
 } params;
 
+layout(binding = 0, set = 0) uniform AppData
+{
+  UniformParams Params;
+};
+
 void main()
 {
     gAlbedo = params.objColor;
-    gNormal = vec4(surf.wNorm, 1.0);
+    gNormal = Params.viewMat * vec4(surf.wNorm, 0.0);
+    gPosition = Params.viewMat * vec4(surf.wPos, 1.0);
 }
