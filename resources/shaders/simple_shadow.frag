@@ -37,6 +37,6 @@ void main()
   vec4 lightColor2 = vec4(1.0f, 1.0f, 1.0f, 1.0f);
    
   vec3 lightDir   = normalize(Params.lightPos - surf.wPos);
-  vec4 lightColor = max(dot(surf.wNorm, lightDir), 0.0f) * lightColor1;
+  vec4 lightColor = max(dot(surf.wNorm, lightDir), 0.0f) * lightColor1 * Params.lightIntensity;
   out_fragColor   = (lightColor*shadow + vec4(0.1f)) * vec4(Params.baseColor, 1.0f);
 }

@@ -11,13 +11,20 @@ layout (location = 0) in VS_OUT
   vec2 texCoord;
 } vOut;
 
-layout(binding = 0, set = 0) uniform AppData
+layout(push_constant) uniform tonemapParams
 {
-    UniformParams Params;
-};
+  bool tonemapEnabled;
+} params;
 
-layout(binding = 1) uniform sampler2D hdrImage;
+layout(binding = 0) uniform sampler2D hdrImage;
+
+vec3 tonemap(vec3 hdrColor)
+{
+  return hdrColor;
+}
 
 void main() {
-  out_fragColor = texture(hdrImage, vOut.texCoord);
+  vec3 color = texture(hdrImage, vOut.texCoord).xyz;
+  out_fragColor = params.tonemapEnabled ? vec4(tonemap(color), 1.0f)
+                                        : vec4(clamp(color, 0.0f, 1.0f), 1.0f);
 }

@@ -80,6 +80,11 @@ private:
   etna::GraphicsPipeline m_tonemapPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
 
+  struct
+  {
+    shader_bool tonemapEnabled = true;
+  } tonemapParams;
+
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
   VkSurfaceKHR m_surface = VK_NULL_HANDLE;
