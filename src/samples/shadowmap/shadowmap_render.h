@@ -45,6 +45,7 @@ public:
 
 private:
   etna::GlobalContext* m_context;
+  etna::Image hdrImage;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
   etna::Sampler defaultSampler;
@@ -76,6 +77,7 @@ private:
   void* m_uboMappedMem = nullptr;
 
   etna::GraphicsPipeline m_basicForwardPipeline {};
+  etna::GraphicsPipeline m_tonemapPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
