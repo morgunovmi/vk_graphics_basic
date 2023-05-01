@@ -10,7 +10,7 @@
 struct AppInput
 {
   AppInput(){
-    cams[1].pos    = LiteMath::float3(4.0f, 4.0f, 4.0f);
+    cams[1].pos    = LiteMath::float3(5.8f, 3.0f, -0.2f);
     cams[1].lookAt = LiteMath::float3(0, 0, 0);
     cams[1].up     = LiteMath::float3(0, 1, 0);
   }

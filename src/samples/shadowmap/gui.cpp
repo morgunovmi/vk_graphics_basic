@@ -16,6 +16,8 @@ void SimpleShadowmapRender::SetupGUIElements()
 
     ImGui::Checkbox("Tonemap enabled", (bool *)&tonemapParams.tonemapEnabled);
     ImGui::SliderFloat("Light intensity", &m_uniforms.lightIntensity, 0.0f, 10.f);
+    const char* items[] = { "Hill ACES", "Narkowicz ACES" };
+    ImGui::Combo("Tonemapping curve", (int *)&tonemapParams.tonemappingCurve, items, IM_ARRAYSIZE(items)); 
 
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 

@@ -83,6 +83,7 @@ private:
   struct
   {
     shader_bool tonemapEnabled = true;
+    shader_uint tonemappingCurve = 0;
   } tonemapParams;
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
