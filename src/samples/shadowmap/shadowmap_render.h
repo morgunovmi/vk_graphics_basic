@@ -135,7 +135,7 @@ private:
   
       radius          = 5.0f;
       lightTargetDist = 20.0f;
-      usePerspectiveM = true;
+      usePerspectiveM = false;
     }
 
     float  radius;           ///!< ignored when usePerspectiveM == true 
