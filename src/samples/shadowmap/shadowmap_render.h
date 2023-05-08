@@ -50,8 +50,12 @@ private:
   etna::Image rsmWorldPos;
   etna::Image rsmWorldNormal;
   etna::Image rsmFlux;
+  etna::Image indirectLight;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
+  etna::Buffer rsmSamples;
+
+  uint16_t numRsmSamples = 400u;
 
   struct {
     etna::Image albedo;
@@ -95,6 +99,7 @@ private:
   void* m_uboMappedMem = nullptr;
 
   etna::GraphicsPipeline m_rsmPipeline {};
+  etna::GraphicsPipeline m_indirectPipeline {};
   etna::GraphicsPipeline m_geometryPipeline {};
   etna::GraphicsPipeline m_shadingPipeline {};
 

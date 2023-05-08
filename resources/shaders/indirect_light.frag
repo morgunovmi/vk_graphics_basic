@@ -22,11 +22,44 @@ layout(binding = 0, set = 0) uniform AppData
   UniformParams Params;
 };
 
-layout (binding = 1) uniform sampler2D shadowMap;
-layout (binding = 2) uniform sampler2D gAlbedo;
-layout (binding = 3) uniform sampler2D gNormals;
-layout (binding = 4) uniform sampler2D depth;
-layout (binding = 5) uniform sampler2D indirectLight;
+layout (binding = 1) uniform sampler2D gNormals;
+layout (binding = 2) uniform sampler2D depth;
+layout (binding = 3) uniform sampler2D rsmPos;
+layout (binding = 4) uniform sampler2D rsmNorm;
+layout (binding = 5) uniform sampler2D rsmFlux;
+
+layout(binding = 6, set = 0) buffer RsmSamples
+{
+  vec2 samples[];
+};
+
+const float rsmRMax = 0.18;
+const uint numRsmSamples = 400;
+const float indirectIntensity = 0.05;
+
+const float PI = 3.1415;
+
+vec3 calcRsm(vec2 shadowTexCoord, vec3 wNorm, vec3 wPos)
+{
+  vec3 indirectLight = vec3(0);
+
+  for (uint i = 0; i < numRsmSamples; ++i)
+  {
+    const vec2 rnd = samples[i];
+    const vec2 coords = shadowTexCoord + rsmRMax * rnd.x * vec2(sin(2 * PI * rnd.y), cos(2 * PI * rnd.y));
+
+    const vec3 wPosRsm  = texture(rsmPos, coords).xyz;
+    const vec3 wNormRsm = normalize(texture(rsmNorm, coords).xyz);
+    const vec3 flux     = texture(rsmFlux, coords).xyz;
+
+    indirectLight += flux * rnd.x * rnd.x
+      * max(0, dot(wNormRsm, wPos - wNormRsm))
+      * max(0, dot(wNorm, wPosRsm - wPos))
+      / pow(length(wPos - wPosRsm), 4);
+  }
+
+  return clamp(indirectLight * indirectIntensity, 0.0, 1.0);
+}
 
 void main()
 {
@@ -43,16 +76,6 @@ void main()
   const vec4 posLightClipSpace = Params.lightMatrix * wPos; // 
   const vec3 posLightSpaceNDC  = posLightClipSpace.xyz / posLightClipSpace.w;    // for orto matrix, we don't need perspective division, you can remove it if you want; this is general case;
   const vec2 shadowTexCoord    = posLightSpaceNDC.xy * 0.5f + vec2(0.5f, 0.5f);  // just shift coords from [-1,1] to [0,1]               
-    
-  const bool  outOfView = (shadowTexCoord.x < 0.0001f || shadowTexCoord.x > 0.9999f || shadowTexCoord.y < 0.0091f || shadowTexCoord.y > 0.9999f);
-  const float shadow    = ((posLightSpaceNDC.z < textureLod(shadowMap, shadowTexCoord, 0).x + 0.001f) || outOfView) ? 1.0f : 0.0f;
 
-  const vec4 lightColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-  const vec3 lightDir   = normalize(Params.lightPos - wPos.xyz);
-  const vec4 diffuse    = max(dot(wNorm.xyz, lightDir), 0.0f) * lightColor;
-
-  const vec4 indirect   = textureLod(indirectLight, vOut.texCoord, 0);
-
-  // out_fragColor = (indirect + diffuse * shadow) * textureLod(gAlbedo, vOut.texCoord, 0);
-  out_fragColor = indirect;
+  out_fragColor = vec4(calcRsm(shadowTexCoord, wNorm.xyz, wPos.xyz), 1.0);
 }

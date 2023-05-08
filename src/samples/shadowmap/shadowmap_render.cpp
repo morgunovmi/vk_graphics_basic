@@ -68,11 +68,20 @@ void SimpleShadowmapRender::AllocateResources()
   {
     .extent = vk::Extent3D{2048, 2048, 1},
     .name = "rsm_flux",
+    .format = vk::Format::eR8G8B8A8Srgb,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+
+  indirectLight = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{m_width, m_height, 1},
+    .name = "indirect_light_image",
     .format = vk::Format::eR16G16B16A16Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
-  defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
+  defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.addressMode = vk::SamplerAddressMode::eClampToBorder,
+                                                           .name = "default_sampler"});
   constants = m_context->createBuffer(etna::Buffer::CreateInfo
   {
     .size = sizeof(UniformParams),
@@ -80,8 +89,15 @@ void SimpleShadowmapRender::AllocateResources()
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "constants"
   });
-
   m_uboMappedMem = constants.map();
+
+  rsmSamples = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(float2),
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
+    .name = "rsm_samples"
+  });
 }
 
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
@@ -107,18 +123,27 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   {
     objColors.emplace_back(LiteMath::float4{colorDistr(gen), colorDistr(gen), colorDistr(gen), 1.0f});
   }
+
+  {
+    std::default_random_engine gen{42};
+    std::uniform_real_distribution<float> rsmDistr{0.f, 1.f};
+
+    std::vector<float2> rsm_samples{};
+    for (size_t i = 0; i < numRsmSamples; ++i)
+    {
+      rsm_samples.emplace_back(rsmDistr(gen), rsmDistr(gen));
+    }
+    spdlog::info("Size : {}", rsm_samples.size());
+    auto *mapped_mem = rsmSamples.map();
+    memcpy(mapped_mem, rsm_samples.data(), sizeof(float2) * rsm_samples.size());
+    rsmSamples.unmap();
+  }
 }
 
 void SimpleShadowmapRender::DeallocateResources()
 {
-  gbuffer.albedo.reset();
-  gbuffer.normals.reset();
-  mainViewDepth.reset(); // TODO: Make an etna method to reset all the resources
-  shadowMap.reset();
   m_swapchain.Cleanup();
-  vkDestroySurfaceKHR(GetVkInstance(), m_surface, nullptr);  
-
-  constants = etna::Buffer();
+  vkDestroySurfaceKHR(GetVkInstance(), m_surface, nullptr);
 }
 
 
@@ -150,6 +175,8 @@ void SimpleShadowmapRender::loadShaders()
 {
   etna::create_program("rsm_setup", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv",
                                     VK_GRAPHICS_BASIC_ROOT"/resources/shaders/rsm_setup.frag.spv"});
+  etna::create_program("indirect_light", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_quad.vert.spv",
+                                    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/indirect_light.frag.spv"});
   etna::create_program("simple_geometry",
     {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_geometry.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
   etna::create_program("simple_deferred", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_quad.vert.spv",
@@ -196,8 +223,20 @@ void SimpleShadowmapRender::SetupSimplePipeline()
       .blendingConfig = colorAttachmentStatesRsm,
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat},
+          .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat, vk::Format::eR8G8B8A8Srgb},
           .depthAttachmentFormat = vk::Format::eD16Unorm
+        }
+    });
+
+  m_indirectPipeline  = pipelineManager.createGraphicsPipeline("indirect_light",
+    {
+      .depthConfig = 
+        {
+          .depthTestEnable = false,
+        },
+      .fragmentShaderOutput =
+        {
+          .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat},
         }
     });
 
@@ -300,16 +339,59 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   etna::set_state(a_cmdBuff, shadowMap.get(), vk::PipelineStageFlagBits2::eFragmentShader,
     vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
     vk::ImageAspectFlagBits::eDepth);
-  // etna::set_state(a_cmdBuff, mainViewDepth.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-  //   vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-  //   vk::ImageAspectFlagBits::eDepth);
+  etna::set_state(a_cmdBuff, mainViewDepth.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eDepth);
   etna::set_state(a_cmdBuff, gbuffer.albedo.get(), vk::PipelineStageFlagBits2::eFragmentShader,
     vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
     vk::ImageAspectFlagBits::eColor);
   etna::set_state(a_cmdBuff, gbuffer.normals.get(), vk::PipelineStageFlagBits2::eFragmentShader,
     vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
     vk::ImageAspectFlagBits::eColor);
-  etna::flush_barriers(a_cmdBuff);
+
+  etna::set_state(a_cmdBuff, rsmWorldPos.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eColor);
+  etna::set_state(a_cmdBuff, rsmWorldNormal.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eColor);
+  etna::set_state(a_cmdBuff, rsmFlux.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eColor);
+
+  //// calc indirect light
+  //
+  {
+    auto indirectInfo  = etna::get_shader_program("indirect_light");
+
+    auto set = etna::create_descriptor_set(indirectInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    {
+      etna::Binding {0, constants.genBinding()},
+      etna::Binding {1, gbuffer.normals.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {2, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {3, rsmWorldPos.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {4, rsmWorldNormal.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {5, rsmFlux.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {6, rsmSamples.genBinding()},
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
+
+    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {indirectLight}, {});
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_indirectPipeline.getVkPipeline());
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+      m_indirectPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+    vkCmdPushConstants(a_cmdBuff, m_indirectPipeline.getVkPipelineLayout(),
+      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstDeferred), &pushConstDeferred);
+
+    vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
+  }
+
+  etna::set_state(a_cmdBuff, indirectLight.get(), vk::PipelineStageFlagBits2::eFragmentShader,
+    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
+    vk::ImageAspectFlagBits::eColor);
 
   //// draw final scene to screen
   //
@@ -323,6 +405,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       etna::Binding {2, gbuffer.albedo.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding {3, gbuffer.normals.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding {4, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {5, indirectLight.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
     });
 
     VkDescriptorSet vkSet = set.getVkSet();
