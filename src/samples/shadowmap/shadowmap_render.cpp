@@ -48,6 +48,30 @@ void SimpleShadowmapRender::AllocateResources()
     .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
+  rsmWorldPos = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{2048, 2048, 1},
+    .name = "rsm_pos",
+    .format = vk::Format::eR16G16B16A16Sfloat,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+
+  rsmWorldNormal = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{2048, 2048, 1},
+    .name = "rsm_norm",
+    .format = vk::Format::eR16G16B16A16Sfloat,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+
+  rsmFlux = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{2048, 2048, 1},
+    .name = "rsm_flux",
+    .format = vk::Format::eR16G16B16A16Sfloat,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+
   defaultSampler = etna::Sampler(etna::Sampler::CreateInfo{.name = "default_sampler"});
   constants = m_context->createBuffer(etna::Buffer::CreateInfo
   {
@@ -124,7 +148,8 @@ void SimpleShadowmapRender::PreparePipelines()
 
 void SimpleShadowmapRender::loadShaders()
 {
-  etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
+  etna::create_program("rsm_setup", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv",
+                                    VK_GRAPHICS_BASIC_ROOT"/resources/shaders/rsm_setup.frag.spv"});
   etna::create_program("simple_geometry",
     {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_geometry.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
   etna::create_program("simple_deferred", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_quad.vert.spv",
@@ -153,16 +178,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
     };
 
   auto& pipelineManager = etna::get_context().getPipelineManager();
-  m_shadowPipeline = pipelineManager.createGraphicsPipeline("simple_shadow",
-    {
-      .vertexShaderInput = sceneVertexInputDesc,
-      .fragmentShaderOutput =
-        {
-          .depthAttachmentFormat = vk::Format::eD16Unorm
-        }
-    });
 
-  std::vector<vk::PipelineColorBlendAttachmentState> colorAttachmentStates;
   auto blendState = vk::PipelineColorBlendAttachmentState{
     .blendEnable    = false,
     .colorWriteMask = vk::ColorComponentFlagBits::eR
@@ -170,6 +186,22 @@ void SimpleShadowmapRender::SetupSimplePipeline()
                       | vk::ColorComponentFlagBits::eB
                       | vk::ColorComponentFlagBits::eA
   };
+  std::vector<vk::PipelineColorBlendAttachmentState> colorAttachmentStatesRsm;
+  for (size_t i = 0; i < 3; i++) {
+    colorAttachmentStatesRsm.push_back(blendState);
+  }
+  m_rsmPipeline = pipelineManager.createGraphicsPipeline("rsm_setup",
+    {
+      .vertexShaderInput = sceneVertexInputDesc,
+      .blendingConfig = colorAttachmentStatesRsm,
+      .fragmentShaderOutput =
+        {
+          .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat},
+          .depthAttachmentFormat = vk::Format::eD16Unorm
+        }
+    });
+
+  std::vector<vk::PipelineColorBlendAttachmentState> colorAttachmentStates;
   for (size_t i = 0; i < 2; i++) {
     colorAttachmentStates.push_back(blendState);
   }
@@ -248,9 +280,9 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //// draw scene to shadowmap
   //
   {
-    etna::RenderTargetState renderTargets(a_cmdBuff, {2048, 2048}, {}, shadowMap);
+    etna::RenderTargetState renderTargets(a_cmdBuff, {2048, 2048}, {{rsmWorldPos, rsmWorldNormal, rsmFlux}}, shadowMap);
 
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadowPipeline.getVkPipeline());
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_rsmPipeline.getVkPipeline());
     DrawSceneCmd(a_cmdBuff, m_lightMatrix);
   }
 

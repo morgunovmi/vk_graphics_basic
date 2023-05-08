@@ -47,6 +47,9 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
+  etna::Image rsmWorldPos;
+  etna::Image rsmWorldNormal;
+  etna::Image rsmFlux;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
 
@@ -91,7 +94,7 @@ private:
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;
 
-  etna::GraphicsPipeline m_shadowPipeline {};
+  etna::GraphicsPipeline m_rsmPipeline {};
   etna::GraphicsPipeline m_geometryPipeline {};
   etna::GraphicsPipeline m_shadingPipeline {};
 
@@ -135,7 +138,7 @@ private:
   
       radius          = 5.0f;
       lightTargetDist = 20.0f;
-      usePerspectiveM = false;
+      usePerspectiveM = true;
     }
 
     float  radius;           ///!< ignored when usePerspectiveM == true 
