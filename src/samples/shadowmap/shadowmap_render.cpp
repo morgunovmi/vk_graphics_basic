@@ -28,7 +28,7 @@ void SimpleShadowmapRender::AllocateResources()
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
     .name = "gbuffer_normals",
-    .format = vk::Format::eR16G16B16A16Sfloat,
+    .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
@@ -36,7 +36,7 @@ void SimpleShadowmapRender::AllocateResources()
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
     .name = "gbuffer_positions",
-    .format = vk::Format::eR16G16B16A16Sfloat,
+    .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
@@ -60,7 +60,7 @@ void SimpleShadowmapRender::AllocateResources()
   {
     .extent = vk::Extent3D{2048, 2048, 1},
     .name = "rsm_pos",
-    .format = vk::Format::eR16G16B16A16Sfloat,
+    .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
@@ -68,7 +68,7 @@ void SimpleShadowmapRender::AllocateResources()
   {
     .extent = vk::Extent3D{2048, 2048, 1},
     .name = "rsm_norm",
-    .format = vk::Format::eR16G16B16A16Sfloat,
+    .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
@@ -84,7 +84,7 @@ void SimpleShadowmapRender::AllocateResources()
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
     .name = "indirect_light_image",
-    .format = vk::Format::eR16G16B16A16Sfloat,
+    .format = vk::Format::eR32G32B32A32Sfloat,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
@@ -106,6 +106,32 @@ void SimpleShadowmapRender::AllocateResources()
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "rsm_samples"
   });
+
+  hdrImage = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{m_width, m_height, 1},
+    .name = "hdr_image",
+    .format = vk::Format::eR16G16B16A16Sfloat,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+}
+
+static float halton_sequence(int i)
+{
+  float f = 1, r = 0;
+  while (i > 0)
+  {
+    f = f / 2;
+    r = r + f * (i % 2);
+    i = i / 2;
+  }
+  return r;
+}
+
+static float2 get_halton_float2()
+{
+  static int i = 0;
+  return {halton_sequence(i++), halton_sequence(i++)};
 }
 
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
@@ -123,29 +149,23 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   m_cam.lookAt = float3(loadedCam.lookAt);
   m_cam.tdist  = loadedCam.farPlane;
 
-  std::random_device rd{};
-  std::default_random_engine gen{rd()};
-  std::uniform_real_distribution<float> colorDistr{0.0f, 1.0f};
-  objColors.clear();
-  for (size_t i = 0; i < m_pScnMgr->InstancesNum(); ++i)
-  {
-    objColors.emplace_back(LiteMath::float4{colorDistr(gen), colorDistr(gen), colorDistr(gen), 1.0f});
-  }
+  objColors = {
+    float4{1.0f, 1.0f, 0.2f, 1.0f},
+    float4{1.0f, 1.0f, 1.0f, 1.0f},
+    float4{0.3f, 1.0f, 0.3f, 1.0f},
+    float4{1.0f, 0.2f, 0.2f, 1.0f},
+    float4{0.1f, 0.1f, 1.0f, 1.0f},
+    float4{0.0f, 1.0f, 1.0f, 1.0f},
+  };
 
+  std::vector<float2> rsm_samples{};
+  for (size_t i = 0; i < numRsmSamples; ++i)
   {
-    std::default_random_engine gen{42};
-    std::uniform_real_distribution<float> rsmDistr{0.f, 1.f};
-
-    std::vector<float2> rsm_samples{};
-    for (size_t i = 0; i < numRsmSamples; ++i)
-    {
-      rsm_samples.emplace_back(rsmDistr(gen), rsmDistr(gen));
-    }
-    spdlog::info("Size : {}", rsm_samples.size());
-    auto *mapped_mem = rsmSamples.map();
-    memcpy(mapped_mem, rsm_samples.data(), sizeof(float2) * rsm_samples.size());
-    rsmSamples.unmap();
+    rsm_samples.push_back(get_halton_float2());
   }
+  auto *mapped_mem = rsmSamples.map();
+  memcpy(mapped_mem, rsm_samples.data(), sizeof(float2) * rsm_samples.size());
+  rsmSamples.unmap();
 }
 
 void SimpleShadowmapRender::DeallocateResources()
@@ -189,6 +209,8 @@ void SimpleShadowmapRender::loadShaders()
     {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_geometry.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
   etna::create_program("simple_deferred", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_quad.vert.spv",
                                           VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_deferred.frag.spv"});
+  etna::create_program("tonemap", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_quad.vert.spv",
+                                  VK_GRAPHICS_BASIC_ROOT"/resources/shaders/tonemap.frag.spv"});
 }
 
 void SimpleShadowmapRender::SetupSimplePipeline()
@@ -231,7 +253,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
         },
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat, vk::Format::eR8G8B8A8Srgb},
+          .colorAttachmentFormats = {vk::Format::eR32G32B32A32Sfloat, vk::Format::eR32G32B32A32Sfloat, vk::Format::eR8G8B8A8Srgb},
           .depthAttachmentFormat = vk::Format::eD16Unorm
         }
     });
@@ -244,7 +266,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
         },
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat},
+          .colorAttachmentFormats = {vk::Format::eR32G32B32A32Sfloat},
         }
     });
 
@@ -257,11 +279,23 @@ void SimpleShadowmapRender::SetupSimplePipeline()
         },
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats = {vk::Format::eR8G8B8A8Srgb, vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat},
+          .colorAttachmentFormats = {vk::Format::eR8G8B8A8Srgb, vk::Format::eR32G32B32A32Sfloat, vk::Format::eR32G32B32A32Sfloat},
           .depthAttachmentFormat = vk::Format::eD16Unorm
         }
     });
   m_shadingPipeline = pipelineManager.createGraphicsPipeline("simple_deferred",
+    {
+      .depthConfig = 
+        {
+          .depthTestEnable = false,
+        },
+      .fragmentShaderOutput =
+        {
+          .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat},
+        }
+    });
+
+  m_tonemapPipeline = pipelineManager.createGraphicsPipeline("tonemap",
     {
       .depthConfig = 
         {
@@ -342,34 +376,38 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
   }
 
-  //// calc indirect light
-  //
+  if (m_uniforms.useIndirectLighting)
   {
-    auto indirectInfo  = etna::get_shader_program("indirect_light");
-
-    auto set = etna::create_descriptor_set(indirectInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    //// calc indirect light
+    //
     {
-      etna::Binding {0, constants.genBinding()},
-      etna::Binding {1, gbuffer.normals.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      etna::Binding {2, gbuffer.positions.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      etna::Binding {3, rsmWorldPos.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      etna::Binding {4, rsmWorldNormal.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      etna::Binding {5, rsmFlux.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      etna::Binding {6, rsmSamples.genBinding()},
-    });
+      auto indirectInfo  = etna::get_shader_program("indirect_light");
 
-    VkDescriptorSet vkSet = set.getVkSet();
+      auto set = etna::create_descriptor_set(indirectInfo.getDescriptorLayoutId(0), a_cmdBuff,
+      {
+        etna::Binding {0, constants.genBinding()},
+        etna::Binding {1, gbuffer.normals.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+        etna::Binding {2, gbuffer.positions.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+        etna::Binding {3, rsmWorldPos.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+        etna::Binding {4, rsmWorldNormal.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+        etna::Binding {5, rsmFlux.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+        etna::Binding {6, rsmSamples.genBinding()},
+      });
+      etna::flush_barriers(a_cmdBuff);
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {indirectLight}, {});
+      VkDescriptorSet vkSet = set.getVkSet();
 
-    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_indirectPipeline.getVkPipeline());
-    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
-      m_indirectPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+      etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {indirectLight}, {});
 
-    vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
+      vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_indirectPipeline.getVkPipeline());
+      vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_indirectPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+      vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
+    }
   }
 
-  //// draw final scene to screen
+  //// draw final scene to hdr
   //
   {
     auto simpleDeferredInfo  = etna::get_shader_program("simple_deferred");
@@ -386,11 +424,35 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     VkDescriptorSet vkSet = set.getVkSet();
 
-    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImage, a_targetImageView}}, {});
+    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {hdrImage}, {});
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadingPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
       m_shadingPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+    vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
+  }
+
+  
+  //// Apply tonemapping
+  //
+  {
+    auto tonemapInfo = etna::get_shader_program("tonemap");
+
+    auto set = etna::create_descriptor_set(tonemapInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    {
+      etna::Binding {0, hdrImage.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
+
+    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {{a_targetImage, a_targetImageView}}, {});
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_tonemapPipeline.getVkPipeline());
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+      m_tonemapPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+    vkCmdPushConstants(a_cmdBuff, m_tonemapPipeline.getVkPipelineLayout(),
+      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(tonemapParams), &tonemapParams);
 
     vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
   }

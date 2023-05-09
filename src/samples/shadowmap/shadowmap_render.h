@@ -54,8 +54,9 @@ private:
   etna::Sampler defaultSampler;
   etna::Buffer constants;
   etna::Buffer rsmSamples;
+  etna::Image hdrImage;
 
-  uint16_t numRsmSamples = 400u;
+  uint16_t numRsmSamples = 200u;
 
   struct {
     etna::Image albedo;
@@ -103,6 +104,13 @@ private:
   etna::GraphicsPipeline m_indirectPipeline {};
   etna::GraphicsPipeline m_geometryPipeline {};
   etna::GraphicsPipeline m_shadingPipeline {};
+  etna::GraphicsPipeline m_tonemapPipeline {};
+
+  struct
+  {
+    shader_bool tonemapEnabled = true;
+    shader_uint tonemappingCurve = 1;
+  } tonemapParams;
 
   std::shared_ptr<vk_utils::DescriptorMaker> m_pBindings = nullptr;
   
