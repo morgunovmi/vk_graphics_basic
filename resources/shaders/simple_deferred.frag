@@ -35,10 +35,9 @@ void main()
 
   const vec4 lightColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
   const vec3 lightDir   = normalize(Params.lightPos - wPos.xyz);
-  const vec4 diffuse    = max(dot(wNorm.xyz, lightDir), 0.0f) * lightColor;
+  const vec4 diffuse    = max(dot(wNorm.xyz, lightDir), 0.0f) * lightColor * Params.lightIntensity;
 
-  const vec4 indirect   = textureLod(indirectLight, vOut.texCoord, 0);
+  const vec4 indirect   = Params.useIndirectLighting ? textureLod(indirectLight, vOut.texCoord, 0) : vec4(0.0);
 
   out_fragColor = (indirect + diffuse * shadow) * texture(gAlbedo, vOut.texCoord);
-  // out_fragColor = indirect;
 }

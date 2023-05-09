@@ -28,14 +28,14 @@ layout(binding = 6, set = 0) buffer RsmSamples
 };
 
 const float rsmRMax = 0.18;
-const uint numRsmSamples = 400;
-const float indirectIntensity = 0.05;
+const uint numRsmSamples = 200;
+const float indirectIntensity = 0.03;
 
 const float PI = 3.1415926538;
 
-vec3 calcRsm(vec2 shadowTexCoord, vec3 wNorm, vec3 wPos)
+vec4 calcRsm(vec2 shadowTexCoord, vec3 wNorm, vec3 wPos)
 {
-  vec3 indirectLight = vec3(0.0);
+  vec4 indirectLight = vec4(0.0);
 
   for (uint i = 0; i < numRsmSamples; ++i)
   {
@@ -44,10 +44,10 @@ vec3 calcRsm(vec2 shadowTexCoord, vec3 wNorm, vec3 wPos)
 
     const vec3 wPosRsm  = texture(rsmPos, coords).xyz;
     const vec3 wNormRsm = texture(rsmNorm, coords).xyz;
-    const vec3 flux     = texture(rsmFlux, coords).xyz;
+    const vec4 flux     = texture(rsmFlux, coords);
 
     indirectLight += flux * rnd.x * rnd.x
-      * max(0, dot(wNormRsm, wPos - wNormRsm))
+      * max(0, dot(wNormRsm, wPos - wPosRsm))
       * max(0, dot(wNorm, wPosRsm - wPos))
       / pow(length(wPos - wPosRsm), 4);
   }
@@ -63,5 +63,5 @@ void main()
   const vec3 posLightSpaceNDC  = posLightClipSpace.xyz / posLightClipSpace.w;    // for orto matrix, we don't need perspective division, you can remove it if you want; this is general case;
   const vec2 shadowTexCoord    = posLightSpaceNDC.xy * 0.5f + vec2(0.5f, 0.5f);  // just shift coords from [-1,1] to [0,1]               
 
-  out_fragColor = vec4(calcRsm(shadowTexCoord, wNorm.xyz, wPos.xyz), 1.0);
+  out_fragColor = calcRsm(shadowTexCoord, wNorm.xyz, wPos.xyz);
 }
