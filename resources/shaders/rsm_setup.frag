@@ -28,6 +28,6 @@ const vec4 lightColor = vec4(1.0, 1.0, 1.0, 1.0);
 void main()
 {
     wPos = vec4(surf.wPos, 1.0);
-    wNormal = vec4(surf.wNorm, 1.0);
+    wNormal = vec4(normalize(surf.wNorm), 1.0);
     flux = params.objColor * lightColor;
 }

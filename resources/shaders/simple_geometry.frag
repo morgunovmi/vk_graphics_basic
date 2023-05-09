@@ -6,6 +6,7 @@
 
 layout(location = 0) out vec4 gAlbedo;
 layout(location = 1) out vec4 gNormal;
+layout(location = 2) out vec4 gPos;
 
 layout (location = 0) in VS_OUT
 {
@@ -26,4 +27,5 @@ void main()
 {
     gAlbedo = params.objColor;
     gNormal = vec4(surf.wNorm, 1.0);
+    gPos = vec4(surf.wPos, 1.0);
 }

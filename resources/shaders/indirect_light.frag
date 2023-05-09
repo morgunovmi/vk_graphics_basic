@@ -11,19 +11,13 @@ layout (location = 0 ) in VS_OUT
   vec2 texCoord;
 } vOut;
 
-layout(push_constant) uniform params_t
-{
-    mat4 projInverse;
-    mat4 viewInverse;
-} params;
-
 layout(binding = 0, set = 0) uniform AppData
 {
   UniformParams Params;
 };
 
 layout (binding = 1) uniform sampler2D gNormals;
-layout (binding = 2) uniform sampler2D depth;
+layout (binding = 2) uniform sampler2D gPos;
 layout (binding = 3) uniform sampler2D rsmPos;
 layout (binding = 4) uniform sampler2D rsmNorm;
 layout (binding = 5) uniform sampler2D rsmFlux;
@@ -37,11 +31,11 @@ const float rsmRMax = 0.18;
 const uint numRsmSamples = 400;
 const float indirectIntensity = 0.05;
 
-const float PI = 3.1415;
+const float PI = 3.1415926538;
 
 vec3 calcRsm(vec2 shadowTexCoord, vec3 wNorm, vec3 wPos)
 {
-  vec3 indirectLight = vec3(0);
+  vec3 indirectLight = vec3(0.0);
 
   for (uint i = 0; i < numRsmSamples; ++i)
   {
@@ -49,7 +43,7 @@ vec3 calcRsm(vec2 shadowTexCoord, vec3 wNorm, vec3 wPos)
     const vec2 coords = shadowTexCoord + rsmRMax * rnd.x * vec2(sin(2 * PI * rnd.y), cos(2 * PI * rnd.y));
 
     const vec3 wPosRsm  = texture(rsmPos, coords).xyz;
-    const vec3 wNormRsm = normalize(texture(rsmNorm, coords).xyz);
+    const vec3 wNormRsm = texture(rsmNorm, coords).xyz;
     const vec3 flux     = texture(rsmFlux, coords).xyz;
 
     indirectLight += flux * rnd.x * rnd.x
@@ -63,16 +57,8 @@ vec3 calcRsm(vec2 shadowTexCoord, vec3 wNorm, vec3 wPos)
 
 void main()
 {
-  float x = vOut.texCoord.x * 2.0 - 1.0;
-  float y = vOut.texCoord.y * 2.0 - 1.0;
-  float z = textureLod(depth, vOut.texCoord, 0).x;
-
-  vec4 clipSpacePosition = vec4(x, y, z, 1.0);
-  vec4 viewSpacePosition = params.projInverse * clipSpacePosition;
-  viewSpacePosition /= viewSpacePosition.w;
-  vec4 wPos = params.viewInverse * viewSpacePosition;
-
-  const vec4 wNorm = normalize(textureLod(gNormals, vOut.texCoord, 0));
+  vec4 wPos = texture(gPos, vOut.texCoord);
+  const vec4 wNorm = texture(gNormals, vOut.texCoord);
   const vec4 posLightClipSpace = Params.lightMatrix * wPos; // 
   const vec3 posLightSpaceNDC  = posLightClipSpace.xyz / posLightClipSpace.w;    // for orto matrix, we don't need perspective division, you can remove it if you want; this is general case;
   const vec2 shadowTexCoord    = posLightSpaceNDC.xy * 0.5f + vec2(0.5f, 0.5f);  // just shift coords from [-1,1] to [0,1]               
