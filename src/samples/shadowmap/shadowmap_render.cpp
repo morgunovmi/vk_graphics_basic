@@ -336,29 +336,6 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
   }
 
-  etna::set_state(a_cmdBuff, shadowMap.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eDepth);
-  etna::set_state(a_cmdBuff, mainViewDepth.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eDepth);
-  etna::set_state(a_cmdBuff, gbuffer.albedo.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eColor);
-  etna::set_state(a_cmdBuff, gbuffer.normals.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eColor);
-
-  etna::set_state(a_cmdBuff, rsmWorldPos.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eColor);
-  etna::set_state(a_cmdBuff, rsmWorldNormal.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eColor);
-  etna::set_state(a_cmdBuff, rsmFlux.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eColor);
-
   //// calc indirect light
   //
   {
@@ -388,10 +365,6 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
     vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
   }
-
-  etna::set_state(a_cmdBuff, indirectLight.get(), vk::PipelineStageFlagBits2::eFragmentShader,
-    vk::AccessFlagBits2::eShaderRead, vk::ImageLayout::eShaderReadOnlyOptimal,
-    vk::ImageAspectFlagBits::eColor);
 
   //// draw final scene to screen
   //
