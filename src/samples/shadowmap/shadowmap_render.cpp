@@ -32,12 +32,20 @@ void SimpleShadowmapRender::AllocateResources()
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
   });
 
+  gbuffer.positions = m_context->createImage(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{m_width, m_height, 1},
+    .name = "gbuffer_positions",
+    .format = vk::Format::eR16G16B16A16Sfloat,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eSampled
+  });
+
   mainViewDepth = m_context->createImage(etna::Image::CreateInfo
   {
     .extent = vk::Extent3D{m_width, m_height, 1},
     .name = "main_view_depth",
     .format = vk::Format::eD16Unorm,
-    .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled
+    .imageUsage = vk::ImageUsageFlagBits::eDepthStencilAttachment
   });
 
   shadowMap = m_context->createImage(etna::Image::CreateInfo
@@ -93,7 +101,7 @@ void SimpleShadowmapRender::AllocateResources()
 
   rsmSamples = m_context->createBuffer(etna::Buffer::CreateInfo
   {
-    .size = sizeof(float2),
+    .size = sizeof(float2) * numRsmSamples,
     .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
     .memoryUsage = VMA_MEMORY_USAGE_CPU_ONLY,
     .name = "rsm_samples"
@@ -213,14 +221,14 @@ void SimpleShadowmapRender::SetupSimplePipeline()
                       | vk::ColorComponentFlagBits::eB
                       | vk::ColorComponentFlagBits::eA
   };
-  std::vector<vk::PipelineColorBlendAttachmentState> colorAttachmentStatesRsm;
-  for (size_t i = 0; i < 3; i++) {
-    colorAttachmentStatesRsm.push_back(blendState);
-  }
+
   m_rsmPipeline = pipelineManager.createGraphicsPipeline("rsm_setup",
     {
       .vertexShaderInput = sceneVertexInputDesc,
-      .blendingConfig = colorAttachmentStatesRsm,
+      .blendingConfig =
+        {
+          .attachments = {blendState, blendState, blendState}
+        },
       .fragmentShaderOutput =
         {
           .colorAttachmentFormats = {vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat, vk::Format::eR8G8B8A8Srgb},
@@ -240,18 +248,16 @@ void SimpleShadowmapRender::SetupSimplePipeline()
         }
     });
 
-  std::vector<vk::PipelineColorBlendAttachmentState> colorAttachmentStates;
-  for (size_t i = 0; i < 2; i++) {
-    colorAttachmentStates.push_back(blendState);
-  }
-
   m_geometryPipeline = pipelineManager.createGraphicsPipeline("simple_geometry",
     {
       .vertexShaderInput = sceneVertexInputDesc,
-      .blendingConfig = colorAttachmentStates,
+      .blendingConfig =
+        {
+          .attachments = {blendState, blendState, blendState}
+        },
       .fragmentShaderOutput =
         {
-          .colorAttachmentFormats = {vk::Format::eR8G8B8A8Srgb, vk::Format::eR16G16B16A16Sfloat},
+          .colorAttachmentFormats = {vk::Format::eR8G8B8A8Srgb, vk::Format::eR16G16B16A16Sfloat, vk::Format::eR16G16B16A16Sfloat},
           .depthAttachmentFormat = vk::Format::eD16Unorm
         }
     });
@@ -329,7 +335,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
   //
   {
     etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height},
-             {{gbuffer.albedo, gbuffer.normals}}, mainViewDepth);
+             {{gbuffer.albedo, gbuffer.normals, gbuffer.positions}}, mainViewDepth);
 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_geometryPipeline.getVkPipeline());
 
@@ -345,7 +351,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     {
       etna::Binding {0, constants.genBinding()},
       etna::Binding {1, gbuffer.normals.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      etna::Binding {2, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {2, gbuffer.positions.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding {3, rsmWorldPos.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding {4, rsmWorldNormal.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding {5, rsmFlux.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
@@ -359,9 +365,6 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_indirectPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
       m_indirectPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
-
-    vkCmdPushConstants(a_cmdBuff, m_indirectPipeline.getVkPipelineLayout(),
-      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstDeferred), &pushConstDeferred);
 
     vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
   }
@@ -377,7 +380,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       etna::Binding {1, shadowMap.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding {2, gbuffer.albedo.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding {3, gbuffer.normals.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
-      etna::Binding {4, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {4, gbuffer.positions.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding {5, indirectLight.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
     });
 
@@ -388,9 +391,6 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_shadingPipeline.getVkPipeline());
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
       m_shadingPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
-
-    vkCmdPushConstants(a_cmdBuff, m_shadingPipeline.getVkPipelineLayout(),
-      VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(pushConstDeferred), &pushConstDeferred);
 
     vkCmdDraw(a_cmdBuff, 3, 1, 0, 0);
   }
