@@ -150,12 +150,7 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   m_cam.tdist  = loadedCam.farPlane;
 
   objColors = {
-    float4{1.0f, 1.0f, 0.2f, 1.0f},
-    float4{1.0f, 1.0f, 1.0f, 1.0f},
-    float4{0.3f, 1.0f, 0.3f, 1.0f},
-    float4{1.0f, 0.2f, 0.2f, 1.0f},
-    float4{0.1f, 0.1f, 1.0f, 1.0f},
-    float4{0.0f, 1.0f, 1.0f, 1.0f},
+    float4{0.8f, 0.4f, 0.2f, 1.0f},
   };
 
   std::vector<float2> rsm_samples{};

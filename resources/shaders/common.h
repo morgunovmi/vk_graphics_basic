@@ -51,6 +51,9 @@ struct UniformParams
   shader_bool  animateLightColor;
   shader_float lightIntensity;
   shader_bool  useIndirectLighting;
+  shader_bool  useSss;
+  shader_float sssScale;
+  shader_float sssAttenuation;
 };
 
 #endif // VK_GRAPHICS_BASIC_COMMON_H

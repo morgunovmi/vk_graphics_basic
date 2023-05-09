@@ -13,12 +13,15 @@ void SimpleShadowmapRender::SetupGUIElements()
 
     ImGui::ColorEdit3("Meshes base color", m_uniforms.baseColor.M, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoInputs);
     ImGui::SliderFloat3("Light source position", m_uniforms.lightPos.M, -10.f, 10.f);
+    ImGui::Checkbox("Use subsurface scattering", (bool *)&m_uniforms.useSss);
+    ImGui::SliderFloat("SSS Scale", &m_uniforms.sssScale, 0.0f, 5.0f);
+    ImGui::SliderFloat("SSS Attenuation", &m_uniforms.sssAttenuation, 0.0f, 5.0f);
     ImGui::Checkbox("Use indirect lighting", (bool *)&m_uniforms.useIndirectLighting);
-    
     ImGui::Checkbox("Tonemap enabled", (bool *)&tonemapParams.tonemapEnabled);
     ImGui::SliderFloat("Light intensity", &m_uniforms.lightIntensity, 0.0f, 10.f);
     const char* items[] = { "Hill ACES", "Narkowicz ACES" };
     ImGui::Combo("Tonemapping curve", (int *)&tonemapParams.tonemappingCurve, items, IM_ARRAYSIZE(items)); 
+
 
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
