@@ -28,8 +28,11 @@ float dist(vec3 pos, vec3 N)
   const vec4 shrinkedLightClipSpace = Params.lightMatrix * shrinkedPos;
   const vec3 shrinkedLightNDC = shrinkedLightClipSpace.xyz / shrinkedLightClipSpace.w;
   const vec2 shadowTexCoord = shrinkedLightNDC.xy * 0.5f + vec2(0.5f, 0.5f);
-  float d1 = texture(shadowMap, shadowTexCoord).x;
-  float d2 = shrinkedLightNDC.z;
+  const float depth = texture(shadowMap, shadowTexCoord).x;
+  const vec4 sampledPosViewSpace = Params.lightProjInverse * vec4(shrinkedLightNDC.xy, depth, 1.0f);
+  const float d1 = sampledPosViewSpace.z / sampledPosViewSpace.w;
+  const vec4 shrinkedLightViewSpace = Params.lightProjInverse * shrinkedLightClipSpace;
+  const float d2 = shrinkedLightViewSpace.z / shrinkedLightViewSpace.w;
   return abs(d1 - d2);
 }
 
