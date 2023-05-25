@@ -53,6 +53,8 @@ struct UniformParams
   shader_float particleAddInterval;
   shader_vec3  cameraRight;
   shader_float particleLifetime;
+  shader_uint screenWidth;
+  shader_uint screenHeight;
 };
 
 struct Particle
