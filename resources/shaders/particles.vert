@@ -50,8 +50,8 @@ void main() {
     if (gl_VertexIndex == 2 || gl_VertexIndex == 3) xy = vec2( 1, -1);
     if (gl_VertexIndex == 4)                        xy = vec2( 1,  1);
     vec3 localPos = vec3(xy, 0.0);
-    vec3 emitterSpacePos = transform(id, localPos);
+    vec3 wPos = transform(id, localPos);
 
-    gl_Position   = params.mProjView * params.mModel * vec4(emitterSpacePos, 1);
+    gl_Position   = params.mProjView * vec4(wPos, 1);
     vOut.texCoord = xy * vec2(1, -1) * 0.5 + 0.5;
 }
