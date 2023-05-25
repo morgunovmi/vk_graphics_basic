@@ -9,6 +9,7 @@
 #include <etna/Etna.hpp>
 #include <etna/RenderTargetStates.hpp>
 #include <vulkan/vulkan_core.h>
+#include <loader_utils/images.h>
 
 
 /// RESOURCE ALLOCATION
@@ -110,6 +111,17 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   m_cam.tdist  = loadedCam.farPlane;
 
   initParticleBuffer();
+
+  int width, height, channels;
+  uint8_t* bytes = loadImageLDR(VK_GRAPHICS_BASIC_ROOT"/resources/textures/shrek.png", width, height, channels);
+
+  particleTex = etna::create_image_from_bytes(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1},
+    .name = "shrek",
+    .format = vk::Format::eR8G8B8A8Srgb,
+    .imageUsage = vk::ImageUsageFlagBits::eSampled
+  }, m_cmdBufferAux, bytes);
 }
 
 void SimpleShadowmapRender::DeallocateResources()
@@ -362,7 +374,8 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     {
       etna::Binding {0, particleDrawList.genBinding()},
       etna::Binding {1, constants.genBinding()},
-      etna::Binding {2, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)}
+      etna::Binding {2, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {3, particleTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
     });
 
     VkDescriptorSet vkSet = set.getVkSet();

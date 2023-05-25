@@ -47,6 +47,7 @@ private:
   etna::GlobalContext* m_context;
   etna::Image mainViewDepth;
   etna::Image shadowMap;
+  etna::Image particleTex;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
   etna::Buffer particleBuffer;

@@ -53,5 +53,5 @@ void main() {
     vec3 emitterSpacePos = transform(id, localPos);
 
     gl_Position   = params.mProjView * params.mModel * vec4(emitterSpacePos, 1);
-    vOut.texCoord = xy * 0.5 + 0.5;
+    vOut.texCoord = xy * vec2(1, -1) * 0.5 + 0.5;
 }
