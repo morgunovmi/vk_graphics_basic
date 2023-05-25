@@ -20,6 +20,11 @@ layout(std430, binding = 0) buffer particleDrawListBuffer
     ParticleDrawData drawData[];
 };
 
+layout(binding = 1) uniform AppData
+{
+    UniformParams Params;
+};
+
 mat3 rotateZ(float alpha)
 {
     float c = cos(alpha);
@@ -32,7 +37,9 @@ mat3 rotateZ(float alpha)
 vec3 transform(uint id, vec3 pos)
 {
     ParticleDrawData data = drawData[id];
-    return data.pos.xyz + rotateZ(data.rot) * data.scale * pos;
+    pos = rotateZ(data.rot) * data.scale * pos;
+    return (params.mModel * data.pos).xyz + Params.cameraRight * pos.x
+                                          + Params.cameraUp * pos.y;
 }
 
 void main() {

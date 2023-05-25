@@ -49,7 +49,9 @@ struct UniformParams
   shader_float time;
   shader_vec3  baseColor;
   shader_bool  animateLightColor;
+  shader_vec3  cameraUp;
   shader_float particleAddInterval;
+  shader_vec3  cameraRight;
   shader_float particleLifetime;
 };
 
