@@ -40,7 +40,58 @@ void SimpleShadowmapRender::AllocateResources()
     .name = "constants"
   });
 
+  particleBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(Particle) * 1024,
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+    .name = "particle_buffer"
+  });
+
+  particleStatsBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(ParticleStats),
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eTransferDst,
+    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+    .name = "particle_stats_buffer"
+  });
+
+  particleDrawList = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(ParticleDrawData) * 1024,
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+    .name = "particle_draw_list"
+  });
+
+  particleIndirectBuffer = m_context->createBuffer(etna::Buffer::CreateInfo
+  {
+    .size = sizeof(DrawIndirectCommand),
+    .bufferUsage = vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eIndirectBuffer,
+    .memoryUsage = VMA_MEMORY_USAGE_GPU_ONLY,
+    .name = "particle_indirect_buffer"
+  });
+
   m_uboMappedMem = constants.map();
+}
+
+void SimpleShadowmapRender::initParticleBuffer()
+{
+  VkCommandBufferBeginInfo beginInfo{};
+  beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+  beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+  vkBeginCommandBuffer(m_cmdBufferAux, &beginInfo);
+  vkCmdFillBuffer(m_cmdBufferAux, particleBuffer.get(), 0, VK_WHOLE_SIZE, 0);
+  vkCmdFillBuffer(m_cmdBufferAux, particleStatsBuffer.get(), 0, VK_WHOLE_SIZE, 0);
+  vkEndCommandBuffer(m_cmdBufferAux);
+
+  VkSubmitInfo submitInfo{};
+  submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+  submitInfo.commandBufferCount = 1;
+  submitInfo.pCommandBuffers = &m_cmdBufferAux;
+  vkQueueSubmit(m_context->getQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+  vkQueueWaitIdle(m_context->getQueue());
 }
 
 void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matrices)
@@ -57,6 +108,8 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   m_cam.up  = float3(loadedCam.up);
   m_cam.lookAt = float3(loadedCam.lookAt);
   m_cam.tdist  = loadedCam.farPlane;
+
+  initParticleBuffer();
 }
 
 void SimpleShadowmapRender::DeallocateResources()
@@ -99,6 +152,10 @@ void SimpleShadowmapRender::loadShaders()
   etna::create_program("simple_material",
     {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
   etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
+  etna::create_program("particle_creator", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/particle_creator.comp.spv"});
+  etna::create_program("particle_draw_list_cs", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/particle_draw_list.comp.spv"});
+  etna::create_program("particles",
+    {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/particles.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/particles.vert.spv"});
 }
 
 void SimpleShadowmapRender::SetupSimplePipeline()
@@ -138,6 +195,39 @@ void SimpleShadowmapRender::SetupSimplePipeline()
       .fragmentShaderOutput =
         {
           .depthAttachmentFormat = vk::Format::eD16Unorm
+        }
+    });
+  m_particleCreatorPipeline = pipelineManager.createComputePipeline("particle_creator", {});
+  m_particleDrawListPipeline = pipelineManager.createComputePipeline("particle_draw_list_cs", {});
+
+  vk::PipelineColorBlendAttachmentState colorBlendAttachment
+    {
+      .blendEnable = true,
+      .srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
+      .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+      .colorBlendOp = vk::BlendOp::eAdd,
+      .srcAlphaBlendFactor = vk::BlendFactor::eOne,
+      .dstAlphaBlendFactor = vk::BlendFactor::eZero,
+      .alphaBlendOp = vk::BlendOp::eAdd,
+      .colorWriteMask = vk::ColorComponentFlagBits::eR
+                | vk::ColorComponentFlagBits::eG
+                | vk::ColorComponentFlagBits::eB
+                | vk::ColorComponentFlagBits::eA,
+    };
+
+  m_particlePipeline = pipelineManager.createGraphicsPipeline("particles",
+    {
+      .blendingConfig = 
+        {
+          .attachments = {colorBlendAttachment},
+        },
+      .depthConfig =
+        {
+          .depthTestEnable = false,
+        },
+      .fragmentShaderOutput =
+        {
+          .colorAttachmentFormats = {static_cast<vk::Format>(m_swapchain.GetFormat())},
         }
     });
 }
@@ -185,6 +275,53 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
   VK_CHECK_RESULT(vkBeginCommandBuffer(a_cmdBuff, &beginInfo));
 
+  // Run particle creator cs
+  {
+    auto particleCreatorInfo = etna::get_shader_program("particle_creator");
+
+    auto set = etna::create_descriptor_set(particleCreatorInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    {
+      etna::Binding {0, constants.genBinding()},
+      etna::Binding {1, particleBuffer.genBinding()},
+      etna::Binding {2, particleStatsBuffer.genBinding()},
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleCreatorPipeline.getVkPipeline());
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
+      m_particleCreatorPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+    // vkCmdPushConstants(a_cmdBuff, m_particleCreatorPipeline.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
+    //                   0, m_coeffs.size() * sizeof(float), m_coeffs.data());
+
+    vkCmdDispatch(a_cmdBuff, 1, 1, 1);
+  }
+
+  // Run particle draw list cs
+  {
+    auto particleDrawListInfo = etna::get_shader_program("particle_draw_list_cs");
+
+    auto set = etna::create_descriptor_set(particleDrawListInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    {
+      etna::Binding {0, particleBuffer.genBinding()},
+      etna::Binding {1, particleStatsBuffer.genBinding()},
+      etna::Binding {2, particleDrawList.genBinding()},
+      etna::Binding {3, particleIndirectBuffer.genBinding()},
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleDrawListPipeline.getVkPipeline());
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
+      m_particleDrawListPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+    // vkCmdPushConstants(a_cmdBuff, m_particleCreatorPipeline.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
+    //                   0, m_coeffs.size() * sizeof(float), m_coeffs.data());
+
+    vkCmdDispatch(a_cmdBuff, 1, 1, 1);
+  }
+
   //// draw scene to shadowmap
   //
   {
@@ -214,6 +351,34 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       m_basicForwardPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
     DrawSceneCmd(a_cmdBuff, m_worldViewProj);
+  }
+
+  //// draw particles
+  //
+  {
+    auto particlesInfo = etna::get_shader_program("particles");
+
+    auto set = etna::create_descriptor_set(particlesInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    {
+      etna::Binding {0, particleDrawList.genBinding()},
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
+
+    etna::RenderTargetState::AttachmentParams colorAttachmentParams{a_targetImage, a_targetImageView};
+    colorAttachmentParams.loadOp = vk::AttachmentLoadOp::eDontCare;
+    colorAttachmentParams.storeOp = vk::AttachmentStoreOp::eStore;
+    etna::RenderTargetState renderTargets(a_cmdBuff, {m_width, m_height}, {colorAttachmentParams}, {});
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_particlePipeline.getVkPipeline());
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
+      m_particlePipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+    pushConst2M.model = m_emitterMatrix;
+    vkCmdPushConstants(a_cmdBuff, m_particlePipeline.getVkPipelineLayout(),
+      VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(pushConst2M), &pushConst2M);
+
+    vkCmdDrawIndirect(a_cmdBuff, particleIndirectBuffer.get(), 0, 1, sizeof(VkDrawIndirectCommand));
   }
 
   if(m_input.drawFSQuad)

@@ -1,0 +1,53 @@
+#version 450
+
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : require
+
+#include "common.h"
+
+layout( local_size_x = 1 ) in;
+
+// layout( push_constant ) uniform params {
+//   uint len;
+// } PushConstant;
+
+layout(std430, binding = 0) buffer particleBuffer
+{
+    Particle particles[];
+};
+
+layout(std430, binding = 1) buffer particleStatsBuffer
+{
+    ParticleStats particleStats;
+};
+
+layout(std430, binding = 2) buffer particleDrawListBuffer
+{
+    ParticleDrawData drawData[];
+};
+
+layout(std430, binding = 3) buffer DrawIndirectBuffer
+{
+    DrawIndirectCommand drawIndirect;
+};
+
+void main() 
+{
+    uint drawIndex = 0;
+    for (uint i = 0; i < 1024; ++i)
+    {
+        Particle p = particles[i];
+        if (p.isAlive)
+        {
+            drawData[drawIndex].pos = p.pos;
+            drawData[drawIndex].rot = p.rot;
+            drawData[drawIndex].scale = p.scale;
+            ++drawIndex;
+        }
+    }
+
+    drawIndirect.vertexCount = 6;
+    drawIndirect.instanceCount = particleStats.particleCount;
+    drawIndirect.firstVertex = 0;
+    drawIndirect.firstInstance = 0;
+}

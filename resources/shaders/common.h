@@ -49,6 +49,39 @@ struct UniformParams
   shader_float time;
   shader_vec3  baseColor;
   shader_bool  animateLightColor;
+  shader_float particleAddInterval;
+  shader_float particleLifetime;
+};
+
+struct Particle
+{
+  shader_vec4 pos; // 16
+  shader_float rot; // 4
+  shader_float scale; // 4
+  shader_bool isAlive; // 4
+  shader_float lifeStart; // 4
+  shader_float lifetime; // 4
+};
+
+struct ParticleDrawData
+{
+  shader_vec4 pos; // 16
+  shader_float rot; // 4
+  shader_float scale; // 4
+};
+
+struct ParticleStats
+{
+  shader_uint particleCount; // 4
+  shader_float lastAddedTime; // 4
+};
+
+struct DrawIndirectCommand
+{
+  shader_uint    vertexCount;
+  shader_uint    instanceCount;
+  shader_uint    firstVertex;
+  shader_uint    firstInstance;
 };
 
 #endif // VK_GRAPHICS_BASIC_COMMON_H

@@ -15,6 +15,8 @@ void SimpleShadowmapRender::InitPresentStuff()
   m_cmdBuffersDrawMain.reserve(m_framesInFlight);
   m_cmdBuffersDrawMain = vk_utils::createCommandBuffers(m_context->getDevice(), m_commandPool, m_framesInFlight);
 
+  m_cmdBufferAux = vk_utils::createCommandBuffers(m_context->getDevice(), m_commandPool, 1)[0];
+
   m_frameFences.resize(m_framesInFlight);
   VkFenceCreateInfo fenceInfo = {};
   fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;

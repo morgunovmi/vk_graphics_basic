@@ -1,0 +1,60 @@
+#version 450
+
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : require
+
+#include "common.h"
+
+layout( local_size_x = 1 ) in;
+
+// layout( push_constant ) uniform params {
+//   uint len;
+// } PushConstant;
+
+layout(binding = 0) uniform AppData
+{
+    UniformParams Params;
+};
+
+layout(std430, binding = 1) buffer particleBuffer
+{
+    Particle particles[];
+};
+
+layout(std430, binding = 2) buffer particleStatsBuffer
+{
+    ParticleStats particleStats;
+};
+
+float rand(vec2 co){
+    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+void main() 
+{
+    if (Params.time - particleStats.lastAddedTime > Params.particleAddInterval)
+    {
+        bool added = false;
+        for (uint i = 0; i < 1024; ++i)
+        {
+            if (!particles[i].isAlive)
+            {
+                particles[i].isAlive = true;
+                particles[i].lifeStart = Params.time;
+                particles[i].lifetime = Params.particleLifetime;
+                particles[i].pos = vec4(0, 0, 0, 1);
+                particles[i].rot = 0;
+                particles[i].scale = 1;
+
+                added = true;
+                break;
+            }
+        }
+        if (added)
+        {
+            particleStats.lastAddedTime = Params.time;
+            ++particleStats.particleCount;
+        }
+    }
+    
+}
