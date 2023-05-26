@@ -72,6 +72,7 @@ struct ParticleDrawData
   shader_vec4 pos; // 16
   shader_float rot; // 4
   shader_float scale; // 4
+  shader_float opacity; // 4
 };
 
 struct ParticleStats

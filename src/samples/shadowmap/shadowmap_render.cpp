@@ -345,6 +345,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       etna::Binding {1, particleStatsBuffer.genBinding()},
       etna::Binding {2, particleDrawList.genBinding()},
       etna::Binding {3, particleIndirectBuffer.genBinding()},
+      etna::Binding {4, constants.genBinding()},
     });
 
     VkDescriptorSet vkSet = set.getVkSet();

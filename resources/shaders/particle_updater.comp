@@ -7,10 +7,6 @@
 
 layout( local_size_x = 32 ) in;
 
-// layout( push_constant ) uniform params {
-//   uint len;
-// } PushConstant;
-
 layout(binding = 0) uniform AppData
 {
     UniformParams Params;
@@ -38,6 +34,8 @@ void main()
             atomicAdd(particleStats.particleCount, -1);
             return;
         }
-        particles[idx].pos.y += 0.1 * Params.deltaTime;
+        particles[idx].pos.y += Params.deltaTime;
+        particles[idx].rot = 0.4 * sin(mix(2 * 3.14, 0, particles[idx].lifetime / Params.particleLifetime));
+        particles[idx].scale *= mix(0.999, 1, particles[idx].lifetime / Params.particleLifetime);
     }
 }

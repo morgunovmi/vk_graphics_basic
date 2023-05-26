@@ -7,6 +7,7 @@
 layout (location = 0) out VS_OUT
 {
     vec2 texCoord;
+    float idx;
 } vOut;
 
 layout(push_constant) uniform params_t
@@ -54,4 +55,5 @@ void main() {
 
     gl_Position   = params.mProjView * vec4(wPos, 1);
     vOut.texCoord = xy * vec2(1, -1) * 0.5 + 0.5;
+    vOut.idx = gl_InstanceIndex + 0.1;
 }

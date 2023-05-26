@@ -7,10 +7,6 @@
 
 layout( local_size_x = 1 ) in;
 
-// layout( push_constant ) uniform params {
-//   uint len;
-// } PushConstant;
-
 layout(std430, binding = 0) buffer particleBuffer
 {
     Particle particles[];
@@ -31,6 +27,11 @@ layout(std430, binding = 3) buffer DrawIndirectBuffer
     DrawIndirectCommand drawIndirect;
 };
 
+layout(binding = 4) uniform AppData
+{
+    UniformParams Params;
+};
+
 void main() 
 {
     uint drawIndex = 0;
@@ -42,6 +43,7 @@ void main()
             drawData[drawIndex].pos = p.pos;
             drawData[drawIndex].rot = p.rot;
             drawData[drawIndex].scale = p.scale;
+            drawData[drawIndex].opacity = p.lifetime / Params.particleLifetime;
             ++drawIndex;
         }
     }

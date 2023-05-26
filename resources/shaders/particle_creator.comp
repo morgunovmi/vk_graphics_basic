@@ -7,10 +7,6 @@
 
 layout( local_size_x = 1 ) in;
 
-// layout( push_constant ) uniform params {
-//   uint len;
-// } PushConstant;
-
 layout(binding = 0) uniform AppData
 {
     UniformParams Params;
@@ -48,7 +44,7 @@ void main()
                                 rand(vec2(Params.time + 3, Params.deltaTime)) * rad);
                 particles[i].pos = vec4(pos, 1);
                 particles[i].rot = 0;
-                particles[i].scale = mix(1, 0.1, length(pos) / length(vec3(rad)));
+                particles[i].scale = mix(1, 0.05, length(pos) / length(vec3(rad)));
 
                 added = true;
                 break;
