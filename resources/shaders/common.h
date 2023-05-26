@@ -53,6 +53,7 @@ struct UniformParams
   shader_float particleAddInterval;
   shader_vec3  cameraRight;
   shader_float particleLifetime;
+  shader_float deltaTime;
   shader_uint screenWidth;
   shader_uint screenHeight;
 };
@@ -63,7 +64,6 @@ struct Particle
   shader_float rot; // 4
   shader_float scale; // 4
   shader_bool isAlive; // 4
-  shader_float lifeStart; // 4
   shader_float lifetime; // 4
 };
 

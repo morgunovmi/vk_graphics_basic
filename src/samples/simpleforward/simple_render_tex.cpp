@@ -107,7 +107,7 @@ void SimpleRenderTexture::SetupSimplePipeline()
     m_screenRenderPass, {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR});
 }
 
-void SimpleRenderTexture::DrawFrame(float a_time, DrawMode a_mode)
+void SimpleRenderTexture::DrawFrame(float a_time, float a_dt, DrawMode a_mode)
 {
   if(m_textureNeedsReload)
   {

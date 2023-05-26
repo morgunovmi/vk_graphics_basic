@@ -27,9 +27,10 @@ layout(std430, binding = 2) buffer particleStatsBuffer
 };
 
 float rand(vec2 co){
-    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453);
+    return fract(sin(dot(co, vec2(12.9898, 78.233))) * 43758.5453) * 2.0 - 1.0;
 }
 
+const float rad = 0.2;
 void main() 
 {
     if (Params.time - particleStats.lastAddedTime > Params.particleAddInterval)
@@ -40,11 +41,14 @@ void main()
             if (!particles[i].isAlive)
             {
                 particles[i].isAlive = true;
-                particles[i].lifeStart = Params.time;
                 particles[i].lifetime = Params.particleLifetime;
-                particles[i].pos = vec4(0, 0, 0, 1);
+
+                vec3 pos = vec3(rand(vec2(Params.time + 1, Params.deltaTime)) * rad,
+                                0,
+                                rand(vec2(Params.time + 3, Params.deltaTime)) * rad);
+                particles[i].pos = vec4(pos, 1);
                 particles[i].rot = 0;
-                particles[i].scale = 1;
+                particles[i].scale = mix(1, 0.1, length(pos) / length(vec3(rad)));
 
                 added = true;
                 break;

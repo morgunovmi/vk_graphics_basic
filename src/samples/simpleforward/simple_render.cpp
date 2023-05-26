@@ -529,7 +529,7 @@ void SimpleRender::DrawFrameSimple()
   vkQueueWaitIdle(m_presentationResources.queue);
 }
 
-void SimpleRender::DrawFrame(float a_time, DrawMode a_mode)
+void SimpleRender::DrawFrame(float a_time, float a_dt, DrawMode a_mode)
 {
   UpdateUniformBuffer(a_time);
   switch (a_mode)

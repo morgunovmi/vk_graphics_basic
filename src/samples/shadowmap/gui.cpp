@@ -14,6 +14,8 @@ void SimpleShadowmapRender::SetupGUIElements()
     ImGui::ColorEdit3("Meshes base color", m_uniforms.baseColor.M, ImGuiColorEditFlags_PickerHueWheel | ImGuiColorEditFlags_NoInputs);
     ImGui::SliderFloat3("Light source position", m_uniforms.lightPos.M, -10.f, 10.f);
     ImGui::SliderFloat3("Emitter pos", emitterPos.M, -5.f, 5.f);
+    ImGui::SliderFloat("Particle add interval", &m_uniforms.particleAddInterval, 0.1f, 5.f);
+    ImGui::SliderFloat("Particle lifetime", &m_uniforms.particleLifetime, 0.1f, 10.f);
 
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 

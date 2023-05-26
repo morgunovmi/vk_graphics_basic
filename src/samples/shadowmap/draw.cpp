@@ -63,9 +63,9 @@ void SimpleShadowmapRender::DrawFrameSimple(bool draw_gui)
   etna::submit();
 }
 
-void SimpleShadowmapRender::DrawFrame(float a_time, DrawMode a_mode)
+void SimpleShadowmapRender::DrawFrame(float a_time, float a_dt, DrawMode a_mode)
 {
-  UpdateUniformBuffer(a_time);
+  UpdateUniformBuffer(a_time, a_dt);
   switch (a_mode)
   {
     case DrawMode::WITH_GUI:

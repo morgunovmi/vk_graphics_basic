@@ -37,7 +37,7 @@ public:
   void UpdateView();
 
   void LoadScene(const char *path, bool transpose_inst_matrices) override;
-  void DrawFrame(float a_time, DrawMode a_mode) override;
+  void DrawFrame(float a_time, float a_dt, DrawMode a_mode) override;
 
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

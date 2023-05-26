@@ -1,0 +1,43 @@
+#version 450
+
+#extension GL_ARB_separate_shader_objects : enable
+#extension GL_GOOGLE_include_directive : require
+
+#include "common.h"
+
+layout( local_size_x = 32 ) in;
+
+// layout( push_constant ) uniform params {
+//   uint len;
+// } PushConstant;
+
+layout(binding = 0) uniform AppData
+{
+    UniformParams Params;
+};
+
+layout(std430, binding = 1) buffer particleBuffer
+{
+    Particle particles[];
+};
+
+layout(std430, binding = 2) buffer particleStatsBuffer
+{
+    ParticleStats particleStats;
+};
+
+void main()
+{
+    uint idx = gl_GlobalInvocationID.x;
+    if (particles[idx].isAlive)
+    {
+        particles[idx].lifetime -= Params.deltaTime;
+        if (particles[idx].lifetime < 0)
+        {
+            particles[idx].isAlive = false;
+            atomicAdd(particleStats.particleCount, -1);
+            return;
+        }
+        particles[idx].pos.y += 0.1 * Params.deltaTime;
+    }
+}

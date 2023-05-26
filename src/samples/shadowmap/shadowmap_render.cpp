@@ -165,6 +165,7 @@ void SimpleShadowmapRender::loadShaders()
     {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple_shadow.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
   etna::create_program("simple_shadow", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/simple.vert.spv"});
   etna::create_program("particle_creator", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/particle_creator.comp.spv"});
+  etna::create_program("particle_updater", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/particle_updater.comp.spv"});
   etna::create_program("particle_draw_list_cs", {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/particle_draw_list.comp.spv"});
   etna::create_program("particles",
     {VK_GRAPHICS_BASIC_ROOT"/resources/shaders/particles.frag.spv", VK_GRAPHICS_BASIC_ROOT"/resources/shaders/particles.vert.spv"});
@@ -210,6 +211,7 @@ void SimpleShadowmapRender::SetupSimplePipeline()
         }
     });
   m_particleCreatorPipeline = pipelineManager.createComputePipeline("particle_creator", {});
+  m_particleUpdaterPipeline = pipelineManager.createComputePipeline("particle_updater", {});
   m_particleDrawListPipeline = pipelineManager.createComputePipeline("particle_draw_list_cs", {});
 
   vk::PipelineColorBlendAttachmentState colorBlendAttachment
@@ -308,6 +310,29 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     //                   0, m_coeffs.size() * sizeof(float), m_coeffs.data());
 
     vkCmdDispatch(a_cmdBuff, 1, 1, 1);
+  }
+
+  // Run particle updater cs
+  {
+    auto particleUpdaterInfo = etna::get_shader_program("particle_updater");
+
+    auto set = etna::create_descriptor_set(particleUpdaterInfo.getDescriptorLayoutId(0), a_cmdBuff,
+    {
+      etna::Binding {0, constants.genBinding()},
+      etna::Binding {1, particleBuffer.genBinding()},
+      etna::Binding {2, particleStatsBuffer.genBinding()},
+    });
+
+    VkDescriptorSet vkSet = set.getVkSet();
+
+    vkCmdBindPipeline(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_particleUpdaterPipeline.getVkPipeline());
+    vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
+      m_particleUpdaterPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
+
+    // vkCmdPushConstants(a_cmdBuff, m_particleCreatorPipeline.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
+    //                   0, m_coeffs.size() * sizeof(float), m_coeffs.data());
+
+    vkCmdDispatch(a_cmdBuff, 32, 1, 1);
   }
 
   // Run particle draw list cs

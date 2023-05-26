@@ -209,9 +209,9 @@ void mainLoop(std::shared_ptr<IRender> &app, GLFWwindow* window, bool displayGUI
     app->ProcessInput(g_appInput);
     app->UpdateCamera(g_appInput.cams, 2);
     if(displayGUI)
-      app->DrawFrame(static_cast<float>(thisTime), DrawMode::WITH_GUI);
+      app->DrawFrame(static_cast<float>(thisTime), static_cast<float>(diffTime), DrawMode::WITH_GUI);
     else
-      app->DrawFrame(static_cast<float>(thisTime), DrawMode::NO_GUI);
+      app->DrawFrame(static_cast<float>(thisTime), static_cast<float>(diffTime), DrawMode::NO_GUI);
 
     // count and print FPS
     //

@@ -41,11 +41,12 @@ void SimpleShadowmapRender::UpdateView()
   m_emitterMatrix = LiteMath::translate4x4(emitterPos);
 }
 
-void SimpleShadowmapRender::UpdateUniformBuffer(float a_time)
+void SimpleShadowmapRender::UpdateUniformBuffer(float a_time, float a_dt)
 {
   m_uniforms.lightMatrix = m_lightMatrix;
   m_uniforms.lightPos    = m_light.cam.pos; //LiteMath::float3(sinf(a_time), 1.0f, cosf(a_time));
   m_uniforms.time        = a_time;
+  m_uniforms.deltaTime   = a_dt;
   m_uniforms.cameraUp    = m_cam.up;
   m_uniforms.cameraRight = m_cam.right();
 

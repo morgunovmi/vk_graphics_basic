@@ -41,7 +41,7 @@ public:
   void UpdateView();
 
   void LoadScene(const char *path, bool transpose_inst_matrices) override;
-  void DrawFrame(float a_time, DrawMode a_mode) override;
+  void DrawFrame(float a_time, float a_dt, DrawMode a_mode) override;
 
 private:
   etna::GlobalContext* m_context;
@@ -86,6 +86,7 @@ private:
   etna::GraphicsPipeline m_basicForwardPipeline {};
   etna::GraphicsPipeline m_shadowPipeline {};
   etna::ComputePipeline m_particleCreatorPipeline {};
+  etna::ComputePipeline m_particleUpdaterPipeline {};
   etna::ComputePipeline m_particleDrawListPipeline {};
   etna::GraphicsPipeline m_particlePipeline {};
 
@@ -154,7 +155,7 @@ private:
   void SetupSimplePipeline();
   void RecreateSwapChain();
 
-  void UpdateUniformBuffer(float a_time);
+  void UpdateUniformBuffer(float a_time, float a_dt);
 
 
   void SetupDeviceExtensions();
