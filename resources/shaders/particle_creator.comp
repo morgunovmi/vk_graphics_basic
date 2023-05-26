@@ -39,12 +39,12 @@ void main()
                 particles[i].isAlive = true;
                 particles[i].lifetime = Params.particleLifetime;
 
-                vec3 pos = vec3(rand(vec2(Params.time + 1, Params.deltaTime)) * rad,
+                vec3 pos = vec3(rand(vec2(Params.time + 1, Params.deltaTime)) * Params.particleSpawnRadius,
                                 0,
-                                rand(vec2(Params.time + 3, Params.deltaTime)) * rad);
+                                rand(vec2(Params.time + 3, Params.deltaTime)) * Params.particleSpawnRadius);
                 particles[i].pos = vec4(pos, 1);
                 particles[i].rot = 0;
-                particles[i].scale = mix(1, 0.05, length(pos) / length(vec3(rad)));
+                particles[i].scale = mix(1, 0.05, length(pos) / length(vec3(Params.particleSpawnRadius)));
 
                 added = true;
                 break;

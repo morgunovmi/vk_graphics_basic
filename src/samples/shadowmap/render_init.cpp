@@ -10,6 +10,7 @@ SimpleShadowmapRender::SimpleShadowmapRender(uint32_t a_width, uint32_t a_height
   m_uniforms.particleLifetime = 0.5f;
   m_uniforms.screenWidth = a_width;
   m_uniforms.screenHeight = a_height;
+  m_uniforms.particleSpawnRadius = 0.2f;
 
   m_emitterMatrix = LiteMath::float4x4();
 }

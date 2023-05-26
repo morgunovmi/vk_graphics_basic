@@ -79,6 +79,7 @@ private:
   float4x4 m_lightMatrix;
   float4x4 m_emitterMatrix;
   float3 emitterPos;
+  float emitterScale = 1.0f;
 
   UniformParams m_uniforms {};
   void* m_uboMappedMem = nullptr;

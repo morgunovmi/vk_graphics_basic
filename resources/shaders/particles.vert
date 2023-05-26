@@ -39,6 +39,7 @@ vec3 transform(uint id, vec3 pos)
 {
     ParticleDrawData data = drawData[id];
     pos = rotateZ(data.rot) * data.scale * pos;
+    pos = (params.mModel * vec4(pos, 1.0)).xyz;
     return (params.mModel * data.pos).xyz + Params.cameraRight * pos.x
                                           + Params.cameraUp * pos.y;
 }
