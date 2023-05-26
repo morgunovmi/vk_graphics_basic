@@ -48,6 +48,7 @@ private:
   etna::Image mainViewDepth;
   etna::Image shadowMap;
   etna::Image particleTex;
+  etna::Image perlinTex;
   etna::Sampler defaultSampler;
   etna::Buffer constants;
   etna::Buffer particleBuffer;

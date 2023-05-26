@@ -18,6 +18,7 @@ layout(binding = 1) uniform AppData
 
 layout (binding = 2) uniform sampler2D depth;
 layout (binding = 3) uniform sampler2D image;
+layout (binding = 4) uniform sampler2D perlin2D;
 
 layout (location = 0) in VS_OUT
 {
@@ -30,6 +31,8 @@ void main()
   vec2 screenTexCoord = vec2(gl_FragCoord.x / Params.screenWidth, gl_FragCoord.y / Params.screenHeight);
   if (texture(depth, screenTexCoord).x < gl_FragCoord.z)
     discard;
-  color = texture(image, surf.texCoord);
-  color.a *= drawData[int(surf.idx)].opacity;
+
+  const float opacity = drawData[int(surf.idx)].opacity;
+  color = texture(image, surf.texCoord + mix(0.5, 0, opacity) * vec2(texture(perlin2D, surf.texCoord)));
+  color.a *= opacity;
 }

@@ -122,6 +122,18 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
     .format = vk::Format::eR8G8B8A8Srgb,
     .imageUsage = vk::ImageUsageFlagBits::eSampled
   }, m_cmdBufferAux, bytes);
+  freeImageMemLDR(bytes);
+
+  bytes = loadImageLDR(VK_GRAPHICS_BASIC_ROOT"/resources/textures/perlin.png", width, height, channels);
+  perlinTex = etna::create_image_from_bytes(etna::Image::CreateInfo
+  {
+    .extent = vk::Extent3D{static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1},
+    .name = "perlin",
+    .format = vk::Format::eR8G8B8A8Srgb,
+    .imageUsage = vk::ImageUsageFlagBits::eSampled
+  }, m_cmdBufferAux, bytes);
+  freeImageMemLDR(bytes);
+
 }
 
 void SimpleShadowmapRender::DeallocateResources()
@@ -402,6 +414,7 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
       etna::Binding {1, constants.genBinding()},
       etna::Binding {2, mainViewDepth.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
       etna::Binding {3, particleTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
+      etna::Binding {4, perlinTex.genBinding(defaultSampler.get(), vk::ImageLayout::eShaderReadOnlyOptimal)},
     });
 
     VkDescriptorSet vkSet = set.getVkSet();
