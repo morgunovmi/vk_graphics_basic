@@ -301,6 +301,43 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
 
   VK_CHECK_RESULT(vkBeginCommandBuffer(a_cmdBuff, &beginInfo));
 
+  {
+    std::array barriers
+      {
+        VkBufferMemoryBarrier2
+        {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+          .srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          .srcAccessMask = VK_ACCESS_NONE,
+          .dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = particleBuffer.get(),
+          .size = sizeof(Particle) * 1024
+        },
+        VkBufferMemoryBarrier2
+        {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+          .srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          .srcAccessMask = VK_ACCESS_NONE,
+          .dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = particleStatsBuffer.get(),
+          .size = sizeof(ParticleStats)
+        },
+      };
+    VkDependencyInfo depInfo
+      {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+        .pBufferMemoryBarriers = barriers.data(),
+      };
+    vkCmdPipelineBarrier2(a_cmdBuff, &depInfo);
+  }
+
   // Run particle creator cs
   {
     auto particleCreatorInfo = etna::get_shader_program("particle_creator");
@@ -322,6 +359,43 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     //                   0, m_coeffs.size() * sizeof(float), m_coeffs.data());
 
     vkCmdDispatch(a_cmdBuff, 1, 1, 1);
+  }
+
+  {
+    std::array barriers
+      {
+        VkBufferMemoryBarrier2
+        {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+          .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+          .dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = particleBuffer.get(),
+          .size = sizeof(Particle) * 1024
+        },
+        VkBufferMemoryBarrier2
+        {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+          .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+          .dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = particleStatsBuffer.get(),
+          .size = sizeof(ParticleStats)
+        },
+      };
+    VkDependencyInfo depInfo
+      {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+        .pBufferMemoryBarriers = barriers.data(),
+      };
+    vkCmdPipelineBarrier2(a_cmdBuff, &depInfo);
   }
 
   // Run particle updater cs
@@ -347,6 +421,55 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdDispatch(a_cmdBuff, 32, 1, 1);
   }
 
+  {
+    std::array barriers
+      {
+        VkBufferMemoryBarrier2
+        {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+          .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+          .dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = particleBuffer.get(),
+          .size = sizeof(Particle) * 1024
+        },
+        VkBufferMemoryBarrier2
+        {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+          .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+          .dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = particleStatsBuffer.get(),
+          .size = sizeof(ParticleStats)
+        },
+        VkBufferMemoryBarrier2
+        {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+          .srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          .srcAccessMask = VK_ACCESS_NONE,
+          .dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = particleDrawList.get(),
+          .size = sizeof(ParticleDrawData) * 1024
+        },
+      };
+    VkDependencyInfo depInfo
+      {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+        .pBufferMemoryBarriers = barriers.data(),
+      };
+    vkCmdPipelineBarrier2(a_cmdBuff, &depInfo);
+  }
+
   // Run particle draw list cs
   {
     auto particleDrawListInfo = etna::get_shader_program("particle_draw_list_cs");
@@ -370,6 +493,31 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     //                   0, m_coeffs.size() * sizeof(float), m_coeffs.data());
 
     vkCmdDispatch(a_cmdBuff, 1, 1, 1);
+  }
+
+  {
+    std::array barriers
+      {
+        VkBufferMemoryBarrier2
+        {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+          .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+          .dstStageMask = VK_PIPELINE_STAGE_ALL_GRAPHICS_BIT,
+          .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = particleDrawList.get(),
+          .size = sizeof(ParticleDrawData) * 1024
+        },
+      };
+    VkDependencyInfo depInfo
+      {
+        .sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO,
+        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+        .pBufferMemoryBarriers = barriers.data(),
+      };
+    vkCmdPipelineBarrier2(a_cmdBuff, &depInfo);
   }
 
   //// draw scene to shadowmap
