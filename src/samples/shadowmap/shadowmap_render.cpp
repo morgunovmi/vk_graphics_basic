@@ -460,6 +460,18 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
           .buffer = particleDrawList.get(),
           .size = sizeof(ParticleDrawData) * 1024
         },
+        VkBufferMemoryBarrier2
+        {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+          .srcStageMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+          .srcAccessMask = VK_ACCESS_NONE,
+          .dstStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = particleIndirectBuffer.get(),
+          .size = sizeof(VkDrawIndirectCommand)
+        },
       };
     VkDependencyInfo depInfo
       {
@@ -509,6 +521,18 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
           .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
           .buffer = particleDrawList.get(),
           .size = sizeof(ParticleDrawData) * 1024
+        },
+        VkBufferMemoryBarrier2
+        {
+          .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2,
+          .srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+          .dstStageMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+          .dstAccessMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT,
+          .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+          .buffer = particleIndirectBuffer.get(),
+          .size = sizeof(VkDrawIndirectCommand)
         },
       };
     VkDependencyInfo depInfo
