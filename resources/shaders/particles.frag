@@ -33,6 +33,6 @@ void main()
     discard;
 
   const float opacity = drawData[int(surf.idx)].opacity;
-  color = texture(image, surf.texCoord + mix(0.5, 0, opacity) * vec2(texture(perlin2D, surf.texCoord)));
+  color = texture(image, surf.texCoord + mix(0.7, 0, opacity) * vec2(texture(perlin2D, surf.texCoord)));
   color.a *= opacity;
 }

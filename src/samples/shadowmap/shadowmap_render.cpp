@@ -113,7 +113,7 @@ void SimpleShadowmapRender::LoadScene(const char* path, bool transpose_inst_matr
   initParticleBuffer();
 
   int width, height, channels;
-  uint8_t* bytes = loadImageLDR(VK_GRAPHICS_BASIC_ROOT"/resources/textures/shrek.png", width, height, channels);
+  uint8_t* bytes = loadImageLDR(VK_GRAPHICS_BASIC_ROOT"/resources/textures/flames.png", width, height, channels);
 
   particleTex = etna::create_image_from_bytes(etna::Image::CreateInfo
   {
