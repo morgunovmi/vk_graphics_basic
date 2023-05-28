@@ -49,6 +49,7 @@ void SimpleShadowmapRender::UpdateUniformBuffer(float a_time, float a_dt)
   m_uniforms.deltaTime   = a_dt;
   m_uniforms.cameraUp    = m_cam.up;
   m_uniforms.cameraRight = m_cam.right();
+  m_uniforms.cameraPos   = m_cam.pos;
 
   memcpy(m_uboMappedMem, &m_uniforms, sizeof(m_uniforms));
 }

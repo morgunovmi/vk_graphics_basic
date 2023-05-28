@@ -355,9 +355,6 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
       m_particleCreatorPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
-    // vkCmdPushConstants(a_cmdBuff, m_particleCreatorPipeline.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
-    //                   0, m_coeffs.size() * sizeof(float), m_coeffs.data());
-
     vkCmdDispatch(a_cmdBuff, 1, 1, 1);
   }
 
@@ -501,8 +498,9 @@ void SimpleShadowmapRender::BuildCommandBufferSimple(VkCommandBuffer a_cmdBuff, 
     vkCmdBindDescriptorSets(a_cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE,
       m_particleDrawListPipeline.getVkPipelineLayout(), 0, 1, &vkSet, 0, VK_NULL_HANDLE);
 
-    // vkCmdPushConstants(a_cmdBuff, m_particleCreatorPipeline.getVkPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT,
-    //                   0, m_coeffs.size() * sizeof(float), m_coeffs.data());
+    pushConst2M.model = m_emitterMatrix;
+    vkCmdPushConstants(a_cmdBuff, m_particleDrawListPipeline.getVkPipelineLayout(),
+      VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(pushConst2M), &pushConst2M);
 
     vkCmdDispatch(a_cmdBuff, 1, 1, 1);
   }

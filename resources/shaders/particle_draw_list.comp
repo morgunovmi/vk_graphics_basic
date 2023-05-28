@@ -7,6 +7,12 @@
 
 layout( local_size_x = 1 ) in;
 
+layout(push_constant) uniform params_t
+{
+    mat4 mProjView;
+    mat4 mModel;
+} params;
+
 layout(std430, binding = 0) buffer particleBuffer
 {
     Particle particles[];
@@ -35,17 +41,31 @@ layout(binding = 4) uniform AppData
 void main() 
 {
     uint drawIndex = 0;
-    for (uint i = 0; i < 1024; ++i)
+    float prevWrittenDist = 123456.0;
+    for (int j = 0; j < particleStats.particleCount; ++j)
     {
-        Particle p = particles[i];
-        if (p.isAlive)
+        float maxDist = 0.0;
+        uint maxDistIndex = 0;
+        for (uint i = 0; i < 1024; ++i)
         {
-            drawData[drawIndex].pos = p.pos;
-            drawData[drawIndex].rot = p.rot;
-            drawData[drawIndex].scale = p.scale;
-            drawData[drawIndex].opacity = p.lifetime / Params.particleLifetime;
-            ++drawIndex;
+            Particle p = particles[i];
+            if (p.isAlive)
+            {
+                const float dist = distance((params.mModel * p.pos).xyz, Params.cameraPos);
+                if (dist > maxDist && dist < prevWrittenDist)
+                {
+                    maxDist = dist;
+                    maxDistIndex = i;
+                }
+            }
         }
+        Particle p = particles[maxDistIndex];
+        drawData[drawIndex].pos = p.pos;
+        drawData[drawIndex].rot = p.rot;
+        drawData[drawIndex].scale = p.scale;
+        drawData[drawIndex].opacity = p.lifetime / Params.particleLifetime;
+        ++drawIndex;
+        prevWrittenDist = maxDist;
     }
 
     drawIndirect.vertexCount = 6;
